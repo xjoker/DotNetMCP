@@ -156,6 +156,12 @@ public class ModificationService
     {
         try
         {
+            // 验证方法名
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return ModificationResult.Failure("INVALID_METHOD_NAME", "Method name cannot be empty");
+            }
+
             var type = FindType(context, request.TypeFullName);
             if (type == null)
             {
@@ -273,22 +279,66 @@ public class ModificationService
 
     private MethodDefinition? FindMethod(AssemblyContext context, string fullName)
     {
+        // 规范化方法名格式
+        // 支持格式：
+        // 1. Namespace.Type.MethodName (推荐)
+        // 2. Namespace.Type::MethodName (Cecil 风格)
+        // 3. Cecil FullName (System.Void Namespace.Type::Method(params))
+        
+        var normalizedName = fullName;
+        
+        // 转换 :: 为 . 以统一处理
+        if (fullName.Contains("::") && !fullName.Contains(" "))
+        {
+            normalizedName = fullName.Replace("::", ".");
+        }
+        
         foreach (var type in context.Assembly!.MainModule.Types)
         {
-            var method = type.Methods.FirstOrDefault(m => 
-                $"{type.FullName}.{m.Name}" == fullName || m.FullName == fullName);
+            // 匹配方法
+            var method = FindMethodInType(type, normalizedName, fullName);
             if (method != null) return method;
 
             // 搜索嵌套类型
             foreach (var nested in type.NestedTypes)
             {
-                method = nested.Methods.FirstOrDefault(m => 
-                    $"{nested.FullName}.{m.Name}" == fullName || m.FullName == fullName);
+                method = FindMethodInType(nested, normalizedName, fullName);
                 if (method != null) return method;
+                
+                // 递归搜索深层嵌套
+                foreach (var deepNested in nested.NestedTypes)
+                {
+                    method = FindMethodInType(deepNested, normalizedName, fullName);
+                    if (method != null) return method;
+                }
+            }
+        }
+        
+        _logger.LogWarning("Method not found: {FullName}. Available formats: Namespace.Type.Method or Type::Method", fullName);
+        return null;
+    }
+
+    private MethodDefinition? FindMethodInType(TypeDefinition type, string normalizedName, string originalName)
+    {
+        foreach (var method in type.Methods)
+        {
+            // 格式 1: Namespace.Type.MethodName
+            var dotFormat = $"{type.FullName}.{method.Name}";
+            if (dotFormat == normalizedName) return method;
+            
+            // 格式 2: Cecil FullName 匹配
+            if (method.FullName == originalName) return method;
+            
+            // 格式 3: 仅方法名匹配（如果类型名匹配）
+            if (normalizedName.EndsWith($".{method.Name}") && 
+                normalizedName.StartsWith(type.FullName))
+            {
+                return method;
             }
         }
         return null;
     }
+
 
     private TypeDefinition? FindType(AssemblyContext context, string fullName)
     {
@@ -361,11 +411,20 @@ public class ModificationService
                 builder.Dup();
                 break;
             default:
-                _logger.LogWarning("Unknown opcode: {OpCode}", info.OpCode);
-                builder.Nop();
-                break;
+                throw new ArgumentException($"Unknown opcode: {info.OpCode}");
         }
     }
+
+    /// <summary>
+    /// 验证 opcode 是否有效
+    /// </summary>
+    private static readonly HashSet<string> ValidOpCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "nop", "ldarg.0", "ldarg.1", "ldc.i4", "ldc_i4", "ldstr",
+        "add", "sub", "mul", "div", "ret", "pop", "dup"
+    };
+
+    public static bool IsValidOpCode(string opcode) => ValidOpCodes.Contains(opcode);
 }
 
 /// <summary>

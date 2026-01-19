@@ -1,0 +1,90 @@
+# Docker Compose - 多用户测试环境
+# 验证 Token 认证和用户隔离
+
+services:
+  # 用户1 后端实例
+  backend-user1:
+    build:
+      context: ../backend-service
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: dotnet-mcp-backend-user1
+    ports:
+      - "8660:8650"
+    volumes:
+      - ../.tmp/assemblies:/data/assemblies:ro
+      - user1-cache:/app/cache
+    environment:
+      - ASPNETCORE_URLS=http://+:8650
+      - ASPNETCORE_ENVIRONMENT=Development
+      - API_KEYS=user1_token_abc123,admin_token_master
+      - TZ=UTC
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8650/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: "no"
+    networks:
+      - mcp-multiuser
+
+  # 用户2 后端实例
+  backend-user2:
+    build:
+      context: ../backend-service
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: dotnet-mcp-backend-user2
+    ports:
+      - "8661:8650"
+    volumes:
+      - ../.tmp/assemblies:/data/assemblies:ro
+      - user2-cache:/app/cache
+    environment:
+      - ASPNETCORE_URLS=http://+:8650
+      - ASPNETCORE_ENVIRONMENT=Development
+      - API_KEYS=user2_token_def456,admin_token_master
+      - TZ=UTC
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8650/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: "no"
+    networks:
+      - mcp-multiuser
+
+  # 共享 MCP Server
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mcp-server
+    container_name: dotnet-mcp-server-multiuser
+    ports:
+      - "8651:8651"
+    environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8651
+      - BACKEND_HOST=backend-user1
+      - BACKEND_PORT=8650
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+    depends_on:
+      backend-user1:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8651/mcp" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: "no"
+    networks:
+      - mcp-multiuser
+
+volumes:
+  user1-cache:
+    driver: local
+  user2-cache:
+    driver: local
+
+networks:
+  mcp-multiuser:
+    driver: bridge

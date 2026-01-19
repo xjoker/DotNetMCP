@@ -1,4 +1,5 @@
 using DotNetMcp.Backend.Services;
+using DotNetMcp.Backend.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,9 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// API Key 认证中间件
+app.UseApiKeyAuth();
+
 // 映射控制器路由
 app.MapControllers();
 
@@ -32,8 +36,10 @@ app.MapControllers();
 app.MapGet("/", () => new
 {
     service = "DotNet MCP Backend",
-    version = "0.2.0",
-    status = "running"
+    version = "0.3.0",
+    status = "running",
+    auth_enabled = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("API_KEYS"))
 });
 
 app.Run();
+

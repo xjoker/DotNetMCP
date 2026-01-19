@@ -170,6 +170,13 @@ public class AnalysisController : ControllerBase
     [HttpGet("search/types")]
     public IActionResult SearchTypes([FromQuery] string keyword, [FromQuery] string? @namespace = null, [FromQuery] int limit = 50, [FromQuery] string? mvid = null)
     {
+        // 验证 limit 参数
+        if (limit < 0)
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_LIMIT", message = "Limit must be >= 0" });
+        }
+        limit = Math.Min(limit, 500); // 最大限制
+
         var context = GetContext(mvid);
         if (context == null)
         {
@@ -308,6 +315,19 @@ public class AnalysisController : ControllerBase
     [HttpGet("callgraph/{typeName}/{methodName}")]
     public IActionResult BuildCallGraph(string typeName, string methodName, [FromQuery] string direction = "callees", [FromQuery] int max_depth = 3, [FromQuery] int max_nodes = 100, [FromQuery] string? mvid = null)
     {
+        // 验证 direction 参数
+        var validDirections = new[] { "callees", "callers", "both" };
+        if (!validDirections.Contains(direction.ToLowerInvariant()))
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_DIRECTION", message = $"Direction must be one of: {string.Join(", ", validDirections)}" });
+        }
+
+        // 验证数值参数
+        if (max_depth < 0 || max_nodes < 0)
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_PARAMETER", message = "max_depth and max_nodes must be >= 0" });
+        }
+
         var context = GetContext(mvid);
         if (context == null)
         {

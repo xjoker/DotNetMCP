@@ -1,0 +1,51 @@
+# Docker Compose - Seq 完整应用测试
+# 挂载完整 Seq 应用目录以测试依赖自动加载
+
+services:
+  backend:
+    build:
+      context: ../backend-service
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: dotnet-mcp-backend-seq
+    ports:
+      - "8650:8650"
+    volumes:
+      # 挂载完整 Seq 应用目录 (只读)
+      - D:/Temp/seq_image/seqsvr:/data/seq:ro
+    environment:
+      - ASPNETCORE_URLS=http://+:8650
+      - ASPNETCORE_ENVIRONMENT=Development
+      - TZ=UTC
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8650/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: "no"
+    networks:
+      - mcp-seq-test
+
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mcp-server
+    container_name: dotnet-mcp-server-seq
+    ports:
+      - "8651:8651"
+    environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8651
+      - BACKEND_HOST=backend
+      - BACKEND_PORT=8650
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - mcp-seq-test
+
+networks:
+  mcp-seq-test:
+    driver: bridge

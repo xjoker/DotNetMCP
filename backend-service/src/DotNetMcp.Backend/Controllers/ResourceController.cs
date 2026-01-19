@@ -156,6 +156,17 @@ namespace DotNetMcp.Backend.Controllers
         {
             try
             {
+                // 验证资源名
+                if (string.IsNullOrWhiteSpace(request.Name))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        error_code = "INVALID_RESOURCE_NAME",
+                        message = "Resource name cannot be empty"
+                    });
+                }
+
                 var context = GetContext(request.Mvid);
                 if (context == null)
                 {

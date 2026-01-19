@@ -59,7 +59,22 @@ public class AssemblyContext : IDisposable
             throw new FileNotFoundException($"Assembly file not found: {assemblyPath}");
 
         _assemblyPath = Path.GetFullPath(assemblyPath);
-        _resolver = new CustomAssemblyResolver(searchPaths);
+        
+        // 自动将程序集所在目录添加到搜索路径（实现自动依赖发现）
+        var autoSearchPaths = new List<string>();
+        var assemblyDir = Path.GetDirectoryName(_assemblyPath);
+        if (!string.IsNullOrEmpty(assemblyDir) && Directory.Exists(assemblyDir))
+        {
+            autoSearchPaths.Add(assemblyDir);
+        }
+        
+        // 合并用户指定的搜索路径
+        if (searchPaths != null)
+        {
+            autoSearchPaths.AddRange(searchPaths);
+        }
+        
+        _resolver = new CustomAssemblyResolver(autoSearchPaths);
     }
 
     /// <summary>

@@ -1,0 +1,60 @@
+# Docker Compose 配置 - 端到端测试专用
+services:
+  # C# 后端服务
+  backend:
+    build:
+      context: ../backend-service
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: dotnet-mcp-backend
+    ports:
+      - "8650:8650"
+    volumes:
+      - ../.tmp/assemblies:/data/assemblies
+      - backend-cache:/app/cache
+    environment:
+      - ASPNETCORE_URLS=http://+:8650
+      - ASPNETCORE_ENVIRONMENT=Development
+      - TZ=UTC
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8650/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: "no"
+    networks:
+      - mcp-network
+
+  # Python MCP Server
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mcp-server
+    container_name: dotnet-mcp-server
+    ports:
+      - "8651:8651"
+    environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8651
+      - BACKEND_HOST=backend
+      - BACKEND_PORT=8650
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8651/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: "no"
+    networks:
+      - mcp-network
+
+volumes:
+  backend-cache:
+    driver: local
+
+networks:
+  mcp-network:
+    driver: bridge

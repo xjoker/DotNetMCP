@@ -1,5 +1,5 @@
 # Backend Service Dockerfile
-FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
 WORKDIR /src
 
 # 复制项目文件
@@ -11,7 +11,7 @@ COPY . .
 RUN dotnet publish ./src/DotNetMcp.Backend/DotNetMcp.Backend.csproj -c Release -o /app
 
 # 运行时镜像
-FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:10.0
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:10.0-preview
 WORKDIR /app
 COPY --from=build /app .
 
