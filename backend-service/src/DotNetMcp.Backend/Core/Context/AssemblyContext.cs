@@ -45,6 +45,11 @@ public class AssemblyContext : IDisposable
     /// </summary>
     public bool IsLoaded => _assembly != null;
 
+    /// <summary>
+    /// 程序集路径
+    /// </summary>
+    public string AssemblyPath => _assemblyPath;
+
     public AssemblyContext(string assemblyPath, IEnumerable<string>? searchPaths = null)
     {
         if (string.IsNullOrWhiteSpace(assemblyPath))
