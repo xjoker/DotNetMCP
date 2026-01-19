@@ -11,11 +11,11 @@
 
 | 类别 | 设计数量 | 已实现 | 完成率 |
 |------|----------|--------|--------|
-| 分析工具 | 9 | 1 | **11%** |
+| 分析工具 | 9 | 9 | **100%** |
 | 修改工具 | 5 | 5 | **100%** |
 | 实例管理 | 7 | 0 | **0%** |
-| 批量操作 | 3 | 0 | **0%** |
-| **总计** | **24** | **6** | **25%** |
+| 批量操作 | 3 | 3 | **100%** |
+| **总计** | **24** | **17** | **71%** |
 
 ### 1.2 详细状态表
 
@@ -24,14 +24,14 @@
 | 工具名称 | Python MCP | C# REST API | 后端核心能力 | 状态 |
 |----------|:----------:|:-----------:|:------------:|------|
 | `get_assembly_info` | ✅ | ✅ `/assembly/info` | ✅ | **完成** |
-| `get_type_source` | ✅ | ❌ | ✅ DecompilerService | TODO |
-| `get_method_by_name` | ✅ | ❌ | ✅ DecompilerService | TODO |
-| `get_type_info` | ✅ | ❌ | ✅ AssemblyContext | TODO |
-| `search_types_by_keyword` | ✅ | ❌ | ✅ SearchService | TODO |
-| `search_string_literals` | ✅ | ❌ | ✅ SearchService | TODO |
-| `get_xrefs_to_type` | ✅ | ❌ | ✅ CrossReferenceAnalyzer | TODO |
-| `get_xrefs_to_method` | ✅ | ❌ | ✅ CrossReferenceAnalyzer | TODO |
-| `build_call_graph` | ✅ | ❌ | ✅ CallGraphAnalyzer | TODO |
+| `get_type_source` | ✅ | ✅ `/analysis/type/{name}/source` | ✅ DecompilerService | **完成** |
+| `get_method_by_name` | ✅ | ✅ `/analysis/type/{name}/method/{name}` | ✅ DecompilerService | **完成** |
+| `get_type_info` | ✅ | ✅ `/analysis/type/{name}/info` | ✅ AssemblyContext | **完成** |
+| `search_types_by_keyword` | ✅ | ✅ `/analysis/search/types` | ✅ SearchService | **完成** |
+| `search_string_literals` | ✅ | ✅ `/analysis/search/strings` | ✅ SearchService | **完成** |
+| `get_xrefs_to_type` | ✅ | ✅ `/analysis/xrefs/type/{name}` | ✅ CrossReferenceAnalyzer | **完成** |
+| `get_xrefs_to_method` | ✅ | ✅ `/analysis/xrefs/method/{type}/{method}` | ✅ CrossReferenceAnalyzer | **完成** |
+| `build_call_graph` | ✅ | ✅ `/analysis/callgraph/{type}/{method}` | ✅ CallGraphAnalyzer | **完成** |
 
 #### 修改工具 (Modification)
 
@@ -59,9 +59,9 @@
 
 | 工具名称 | Python MCP | C# REST API | 后端核心能力 | 状态 |
 |----------|:----------:|:-----------:|:------------:|------|
-| `batch_get_type_source` | ✅ | ❌ | 🔸 需整合 | TODO |
-| `batch_get_method_by_name` | ✅ | ❌ | 🔸 需整合 | TODO |
-| `batch_get_xrefs` | ✅ | ❌ | 🔸 需整合 | TODO |
+| `batch_get_type_source` | ✅ | ✅ `/analysis/batch/sources` | ✅ | **完成** |
+| `batch_get_method_by_name` | ✅ | ✅ `/analysis/batch/methods` | ✅ | **完成** |
+| `batch_get_xrefs` | ✅ | ✅ `/analysis/batch/xrefs` | ✅ | **完成** |
 
 ---
 
