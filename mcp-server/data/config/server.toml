@@ -1,0 +1,47 @@
+# DotNet MCP Server 配置
+
+[server]
+# MCP 传输模式: http | stdio
+transport = "http"
+# HTTP 端口 (transport=http 时生效)
+port = 8651
+# 日志级别: DEBUG | INFO | WARN | ERROR
+log_level = "info"
+
+[backend]
+# C# 后端服务地址
+host = "127.0.0.1"
+port = 8650
+# 连接超时 (秒)
+connect_timeout = 10
+# 健康检查间隔 (秒)
+health_check_interval = 30
+
+[security]
+# 是否允许通过 AI 动态添加程序集实例
+allow_dynamic_instances = false
+
+[defaults]
+# 后端服务 Token (可选)
+backend_token = ""
+
+# ============================================
+# 用户认证 (多用户模式)
+# ============================================
+# [[users]]
+# name = "alice"
+# token = "token-alice-xxxxx"
+
+# [[users]]
+# name = "admin"
+# token = "token-admin-zzzzz"
+# is_admin = true
+
+# ============================================
+# 预配置的程序集实例
+# ============================================
+# [[assembly_instances]]
+# name = "my-project"
+# host = "127.0.0.1"
+# port = 8650
+# default = true

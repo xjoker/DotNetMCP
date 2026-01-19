@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # C# 后端服务
+  backend:
+    build:
+      context: ../backend-service
+      dockerfile: ../docker/Dockerfile.backend
+    ports:
+      - "8650:8650"
+    volumes:
+      - assemblies:/data/assemblies:ro
+      - backend-cache:/app/cache
+    environment:
+      - ASPNETCORE_URLS=http://+:8650
+      - ASPNETCORE_ENVIRONMENT=Production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8650/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Python MCP Server
+  mcp-server:
+    build:
+      context: ../mcp-server
+      dockerfile: ../docker/Dockerfile.mcp-server
+    ports:
+      - "8651:8651"
+    volumes:
+      - ./config:/app/data/config:ro
+    environment:
+      - DOTNETMCP_TRANSPORT=http
+      - DOTNETMCP_PORT=8651
+      - DOTNETMCP_BACKEND_HOST=backend
+      - DOTNETMCP_BACKEND_PORT=8650
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  assemblies:
+  backend-cache:

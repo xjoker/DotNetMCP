@@ -1,0 +1,6 @@
+@DotNetMcp.Backend_HostAddress = http://localhost:5095
+
+GET {{DotNetMcp.Backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

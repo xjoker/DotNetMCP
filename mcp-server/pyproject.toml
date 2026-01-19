@@ -1,0 +1,25 @@
+[project]
+name = "dotnetmcp-server"
+version = "0.1.0"
+description = "MCP Server for IL Reverse Engineering - Connect LLMs with .NET Assembly Analysis"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.0.0,<3.0",
+    "httpx>=0.28.1",
+    "tomli>=2.0.0; python_version < '3.11'",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["dotnetmcp_server"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[project.scripts]
+dotnetmcp_server = "dotnetmcp_server:main"
