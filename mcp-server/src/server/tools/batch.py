@@ -2,6 +2,7 @@
 Batch Tools - MCP tools for batch operations
 
 Tools for performing multiple operations in a single call to reduce overhead.
+Updated to match the C# REST API endpoints.
 """
 
 from fastmcp import FastMCP
@@ -38,7 +39,7 @@ def register_tools(mcp: FastMCP):
         
         instance = InstanceRegistry.get_instance(instance_name)
         body = {
-            "type_names": type_names,
+            "typeNames": type_names,
             "language": language
         }
         return await make_request(instance, "POST", "/analysis/batch/sources", json=body)
@@ -59,6 +60,12 @@ def register_tools(mcp: FastMCP):
         
         Returns:
             Dict mapping method identifiers to their source code.
+            
+        Example:
+            batch_get_method_by_name([
+                {"type_name": "MyApp.Calculator", "method_name": "Add"},
+                {"type_name": "MyApp.Calculator", "method_name": "Subtract"}
+            ])
         """
         if len(methods) > 20:
             return {
@@ -67,38 +74,43 @@ def register_tools(mcp: FastMCP):
             }
         
         instance = InstanceRegistry.get_instance(instance_name)
+        # Convert to API expected format
         body = {
-            "methods": methods,
+            "methods": [
+                {"typeName": m.get("type_name", m.get("typeName", "")), 
+                 "methodName": m.get("method_name", m.get("methodName", ""))} 
+                for m in methods
+            ],
             "language": language
         }
         return await make_request(instance, "POST", "/analysis/batch/methods", json=body)
 
     @mcp.tool("batch_get_xrefs")
     async def batch_get_xrefs(
-        member_ids: list,
-        limit_per_member: int = 20,
+        type_names: list,
+        limit_per_type: int = 20,
         instance_name: str = None
     ) -> dict:
         """
-        Get cross-references for multiple members in one call.
+        Get cross-references for multiple types in one call.
         
         Args:
-            member_ids: List of MemberIds (max 10)
-            limit_per_member: Max xrefs per member (default 20)
+            type_names: List of fully qualified type names (max 10)
+            limit_per_type: Max xrefs per type (default 20)
             instance_name: Optional instance name.
         
         Returns:
-            Dict mapping MemberIds to their xrefs.
+            Dict mapping type names to their xrefs.
         """
-        if len(member_ids) > 10:
+        if len(type_names) > 10:
             return {
                 "success": False,
-                "message": "Maximum 10 members per batch xref request"
+                "message": "Maximum 10 types per batch xref request"
             }
         
         instance = InstanceRegistry.get_instance(instance_name)
         body = {
-            "member_ids": member_ids,
-            "limit": limit_per_member
+            "typeNames": type_names,
+            "limit": limit_per_type
         }
         return await make_request(instance, "POST", "/analysis/batch/xrefs", json=body)

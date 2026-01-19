@@ -2,8 +2,10 @@
 Analysis Tools - MCP tools for .NET assembly analysis
 
 Tools for reading assembly metadata, decompiling code, searching, and cross-references.
+Updated to match the C# REST API endpoints.
 """
 
+from urllib.parse import quote
 from fastmcp import FastMCP
 
 from ..instance_registry import InstanceRegistry
@@ -47,9 +49,11 @@ def register_tools(mcp: FastMCP):
             Decompiled source code with line mappings.
         """
         instance = InstanceRegistry.get_instance(instance_name)
+        # URL encode the type name to handle special characters
+        encoded_type = quote(type_name, safe='')
         return await make_request(
             instance, "GET", 
-            f"/analysis/type/{type_name}/source",
+            f"/analysis/type/{encoded_type}/source",
             params={"language": language}
         )
 
@@ -73,9 +77,11 @@ def register_tools(mcp: FastMCP):
             Method source code with signature and body.
         """
         instance = InstanceRegistry.get_instance(instance_name)
+        encoded_type = quote(type_name, safe='')
+        encoded_method = quote(method_name, safe='')
         return await make_request(
             instance, "GET",
-            f"/analysis/type/{type_name}/method/{method_name}",
+            f"/analysis/type/{encoded_type}/method/{encoded_method}",
             params={"language": language}
         )
 
@@ -92,14 +98,14 @@ def register_tools(mcp: FastMCP):
             Type metadata including base type, interfaces, methods, fields, properties.
         """
         instance = InstanceRegistry.get_instance(instance_name)
-        return await make_request(instance, "GET", f"/analysis/type/{type_name}/info")
+        encoded_type = quote(type_name, safe='')
+        return await make_request(instance, "GET", f"/analysis/type/{encoded_type}/info")
 
     @mcp.tool("search_types_by_keyword")
     async def search_types_by_keyword(
         keyword: str,
         namespace_filter: str = None,
         limit: int = 50,
-        cursor: str = None,
         instance_name: str = None
     ) -> dict:
         """
@@ -109,18 +115,15 @@ def register_tools(mcp: FastMCP):
             keyword: Search keyword (supports wildcards: * ?)
             namespace_filter: Optional namespace prefix filter
             limit: Max results (default 50, max 500)
-            cursor: Pagination cursor
             instance_name: Optional instance name.
         
         Returns:
-            Paginated list of matching types with MemberIds.
+            List of matching types with metadata.
         """
         instance = InstanceRegistry.get_instance(instance_name)
         params = {"keyword": keyword, "limit": limit}
         if namespace_filter:
             params["namespace"] = namespace_filter
-        if cursor:
-            params["cursor"] = cursor
         return await make_request(instance, "GET", "/analysis/search/types", params=params)
 
     @mcp.tool("search_string_literals")
@@ -128,7 +131,6 @@ def register_tools(mcp: FastMCP):
         query: str,
         match_mode: str = "contains",
         limit: int = 50,
-        cursor: str = None,
         instance_name: str = None
     ) -> dict:
         """
@@ -136,25 +138,21 @@ def register_tools(mcp: FastMCP):
         
         Args:
             query: Search string
-            match_mode: "contains" | "exact" | "startswith" | "regex"
+            match_mode: "contains" | "exact" | "startswith"
             limit: Max results (default 50, max 500)
-            cursor: Pagination cursor
             instance_name: Optional instance name.
         
         Returns:
-            Paginated list of string occurrences with LocationIds.
+            List of string occurrences with location info.
         """
         instance = InstanceRegistry.get_instance(instance_name)
         params = {"query": query, "mode": match_mode, "limit": limit}
-        if cursor:
-            params["cursor"] = cursor
         return await make_request(instance, "GET", "/analysis/search/strings", params=params)
 
     @mcp.tool("get_xrefs_to_type")
     async def get_xrefs_to_type(
         type_name: str,
         limit: int = 50,
-        cursor: str = None,
         instance_name: str = None
     ) -> dict:
         """
@@ -162,51 +160,50 @@ def register_tools(mcp: FastMCP):
         
         Args:
             type_name: Fully qualified type name
-            limit: Max results
-            cursor: Pagination cursor
+            limit: Max results (default 50)
             instance_name: Optional instance name.
         
         Returns:
-            Paginated list of usage locations with context.
+            List of usage locations with context.
         """
         instance = InstanceRegistry.get_instance(instance_name)
+        encoded_type = quote(type_name, safe='')
         params = {"limit": limit}
-        if cursor:
-            params["cursor"] = cursor
         return await make_request(
-            instance, "GET", f"/analysis/xrefs/type/{type_name}", params=params
+            instance, "GET", f"/analysis/xrefs/type/{encoded_type}", params=params
         )
 
     @mcp.tool("get_xrefs_to_method")
     async def get_xrefs_to_method(
-        member_id: str,
+        type_name: str,
+        method_name: str,
         limit: int = 50,
-        cursor: str = None,
         instance_name: str = None
     ) -> dict:
         """
-        Find all references to a method.
+        Find all references (call sites) to a method.
         
         Args:
-            member_id: MemberId of the method
-            limit: Max results
-            cursor: Pagination cursor
+            type_name: Fully qualified type name containing the method
+            method_name: Method name
+            limit: Max results (default 50)
             instance_name: Optional instance name.
         
         Returns:
-            Paginated list of call sites with context.
+            List of call sites with context.
         """
         instance = InstanceRegistry.get_instance(instance_name)
+        encoded_type = quote(type_name, safe='')
+        encoded_method = quote(method_name, safe='')
         params = {"limit": limit}
-        if cursor:
-            params["cursor"] = cursor
         return await make_request(
-            instance, "GET", f"/analysis/xrefs/method/{member_id}", params=params
+            instance, "GET", f"/analysis/xrefs/method/{encoded_type}/{encoded_method}", params=params
         )
 
     @mcp.tool("build_call_graph")
     async def build_call_graph(
-        member_id: str,
+        type_name: str,
+        method_name: str,
         direction: str = "callees",
         max_depth: int = 3,
         max_nodes: int = 100,
@@ -216,21 +213,24 @@ def register_tools(mcp: FastMCP):
         Build call graph starting from a method.
         
         Args:
-            member_id: Entry method MemberId
+            type_name: Fully qualified type name containing the method
+            method_name: Entry method name
             direction: "callees" | "callers" | "both"
             max_depth: Maximum graph depth (default 3)
             max_nodes: Maximum nodes (default 100)
             instance_name: Optional instance name.
         
         Returns:
-            Graph with nodes and edges.
+            Graph with nodes and edges showing call relationships.
         """
         instance = InstanceRegistry.get_instance(instance_name)
+        encoded_type = quote(type_name, safe='')
+        encoded_method = quote(method_name, safe='')
         params = {
             "direction": direction,
             "max_depth": max_depth,
             "max_nodes": max_nodes
         }
         return await make_request(
-            instance, "GET", f"/analysis/callgraph/{member_id}", params=params
+            instance, "GET", f"/analysis/callgraph/{encoded_type}/{encoded_method}", params=params
         )
