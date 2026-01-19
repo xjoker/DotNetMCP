@@ -47,6 +47,9 @@ public class AssemblyController : ControllerBase
             {
                 var key = context.Mvid.ToString();
                 _contexts[key] = context;
+                
+                // 注册到 ModificationController 以便共享
+                ModificationController.RegisterContext(key, context);
             }
 
             return Ok(new

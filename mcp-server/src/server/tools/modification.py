@@ -1,7 +1,8 @@
 """
 Modification Tools - MCP tools for .NET assembly modification
 
-Tools for modifying method bodies, adding/removing members, and managing modify sessions.
+Tools for modifying method bodies, adding/removing members.
+Updated to match the C# REST API endpoints.
 """
 
 from fastmcp import FastMCP
@@ -13,196 +14,185 @@ from ..config import make_request
 def register_tools(mcp: FastMCP):
     """Register modification tools with the MCP server."""
 
-    @mcp.tool("begin_modify_session")
-    async def begin_modify_session(
-        assembly_path: str = None,
+    @mcp.tool("inject_method_entry")
+    async def inject_method_entry(
+        method_full_name: str,
+        instructions: list,
+        mvid: str = None,
         instance_name: str = None
     ) -> dict:
         """
-        Begin a modification session for an assembly.
-        
-        All modifications are staged until commit. Use rollback to discard changes.
+        Inject IL instructions at method entry.
         
         Args:
-            assembly_path: Path to assembly (uses loaded assembly if not specified)
+            method_full_name: Full method name (e.g., "Namespace.Type::MethodName")
+            instructions: List of instruction objects with opcode, intValue, stringValue
+            mvid: Optional assembly MVID (uses loaded assembly if not specified)
             instance_name: Optional instance name.
         
         Returns:
-            Session ID and assembly info.
+            Success status and injection info.
+            
+        Example:
+            inject_method_entry(
+                "MyApp.Program::Main",
+                [
+                    {"opCode": "ldstr", "stringValue": "Hello"},
+                    {"opCode": "call", "stringValue": "System.Console::WriteLine"},
+                    {"opCode": "nop"}
+                ]
+            )
         """
         instance = InstanceRegistry.get_instance(instance_name)
-        body = {}
-        if assembly_path:
-            body["path"] = assembly_path
-        return await make_request(instance, "POST", "/modify/session/begin", json=body)
+        body = {
+            "methodFullName": method_full_name,
+            "instructions": instructions
+        }
+        if mvid:
+            body["mvid"] = mvid
+        return await make_request(instance, "POST", "/modification/inject/entry", json=body)
 
     @mcp.tool("replace_method_body")
     async def replace_method_body(
-        session_id: str,
-        member_id: str,
-        new_body: str,
-        format: str = "csharp",
-        instance_name: str = None
-    ) -> dict:
-        """
-        Replace the body of a method.
-        
-        Args:
-            session_id: Modify session ID
-            member_id: Target method MemberId
-            new_body: New method body content
-            format: Body format: "csharp" | "il"
-            instance_name: Optional instance name.
-        
-        Returns:
-            Validation result and warnings.
-        """
-        instance = InstanceRegistry.get_instance(instance_name)
-        body = {
-            "session_id": session_id,
-            "member_id": member_id,
-            "body": new_body,
-            "format": format
-        }
-        return await make_request(instance, "POST", "/modify/method/replace", json=body)
-
-    @mcp.tool("inject_il")
-    async def inject_il(
-        session_id: str,
-        member_id: str,
-        position: str,
+        method_full_name: str,
         instructions: list,
-        anchor_offset: str = None,
+        mvid: str = None,
         instance_name: str = None
     ) -> dict:
         """
-        Inject IL instructions into a method.
+        Replace the entire body of a method with new IL instructions.
         
         Args:
-            session_id: Modify session ID
-            member_id: Target method MemberId
-            position: "start" | "end" | "before" | "after"
-            instructions: List of IL instructions
-            anchor_offset: IL offset for before/after positioning
+            method_full_name: Full method name
+            instructions: List of instruction objects
+            mvid: Optional assembly MVID
             instance_name: Optional instance name.
         
         Returns:
-            New offsets and validation result.
+            Success status and method info.
+            
+        Example:
+            replace_method_body(
+                "MyApp.Calculator::Add",
+                [
+                    {"opCode": "ldc.i4", "intValue": 42},
+                    {"opCode": "ret"}
+                ]
+            )
         """
         instance = InstanceRegistry.get_instance(instance_name)
         body = {
-            "session_id": session_id,
-            "member_id": member_id,
-            "position": position,
+            "methodFullName": method_full_name,
             "instructions": instructions
         }
-        if anchor_offset:
-            body["anchor"] = anchor_offset
-        return await make_request(instance, "POST", "/modify/method/inject", json=body)
+        if mvid:
+            body["mvid"] = mvid
+        return await make_request(instance, "POST", "/modification/replace/body", json=body)
 
-    @mcp.tool("add_member")
-    async def add_member(
-        session_id: str,
-        target_type_id: str,
-        kind: str,
+    @mcp.tool("add_type")
+    async def add_type(
+        namespace: str,
         name: str,
-        signature: dict,
-        body: str = None,
+        kind: str = "class",
+        mvid: str = None,
         instance_name: str = None
     ) -> dict:
         """
-        Add a new member to a type.
+        Add a new type to the assembly.
         
         Args:
-            session_id: Modify session ID
-            target_type_id: Target type MemberId
-            kind: "method" | "field" | "property"
-            name: Member name
-            signature: Signature definition
-            body: Method body (for methods, optional)
+            namespace: Type namespace
+            name: Type name
+            kind: Type kind: "class" | "interface" | "struct"
+            mvid: Optional assembly MVID
             instance_name: Optional instance name.
         
         Returns:
-            New member's temporary MemberId.
+            Success status and type full name.
+            
+        Example:
+            add_type("MyApp.Models", "NewClass", "class")
         """
         instance = InstanceRegistry.get_instance(instance_name)
-        payload = {
-            "session_id": session_id,
-            "target_type_id": target_type_id,
-            "kind": kind,
+        body = {
+            "namespace": namespace,
             "name": name,
-            "signature": signature
+            "kind": kind
         }
-        if body:
-            payload["body"] = body
-        return await make_request(instance, "POST", "/modify/member/add", json=payload)
+        if mvid:
+            body["mvid"] = mvid
+        return await make_request(instance, "POST", "/modification/type/add", json=body)
 
-    @mcp.tool("remove_member")
-    async def remove_member(
-        session_id: str,
-        member_id: str,
-        force: bool = False,
+    @mcp.tool("add_method")
+    async def add_method(
+        type_full_name: str,
+        name: str,
+        return_type: str = "void",
+        parameters: list = None,
+        mvid: str = None,
         instance_name: str = None
     ) -> dict:
         """
-        Remove a member from its type.
+        Add a new method to a type.
         
         Args:
-            session_id: Modify session ID
-            member_id: Member to remove
-            force: Force removal even if referenced
+            type_full_name: Full type name (e.g., "MyApp.Models.User")
+            name: Method name
+            return_type: Return type (default "void")
+            parameters: List of parameter objects with name and type
+            mvid: Optional assembly MVID
             instance_name: Optional instance name.
         
         Returns:
-            Affected references list.
+            Success status and method info.
+            
+        Example:
+            add_method(
+                "MyApp.Models.User",
+                "GetFullName",
+                "string",
+                [
+                    {"name": "firstName", "type": "string"},
+                    {"name": "lastName", "type": "string"}
+                ]
+            )
         """
         instance = InstanceRegistry.get_instance(instance_name)
         body = {
-            "session_id": session_id,
-            "member_id": member_id,
-            "force": force
+            "typeFullName": type_full_name,
+            "name": name,
+            "returnType": return_type
         }
-        return await make_request(instance, "POST", "/modify/member/remove", json=body)
+        if parameters:
+            body["parameters"] = parameters
+        if mvid:
+            body["mvid"] = mvid
+        return await make_request(instance, "POST", "/modification/method/add", json=body)
 
-    @mcp.tool("commit_session")
-    async def commit_session(
-        session_id: str,
+    @mcp.tool("save_assembly")
+    async def save_assembly(
         output_path: str,
+        mvid: str = None,
         instance_name: str = None
     ) -> dict:
         """
-        Commit all modifications and write the new assembly.
+        Save the modified assembly to a file.
         
         Args:
-            session_id: Modify session ID
-            output_path: Path for the modified assembly
+            output_path: Path where to save the assembly
+            mvid: Optional assembly MVID
             instance_name: Optional instance name.
         
         Returns:
-            New assembly info, ID mapping table, validation result.
+            Success status and save info.
+            
+        Example:
+            save_assembly("/tmp/modified_assembly.dll")
         """
         instance = InstanceRegistry.get_instance(instance_name)
         body = {
-            "session_id": session_id,
-            "output_path": output_path
+            "outputPath": output_path
         }
-        return await make_request(instance, "POST", "/modify/session/commit", json=body)
-
-    @mcp.tool("rollback_session")
-    async def rollback_session(
-        session_id: str,
-        instance_name: str = None
-    ) -> dict:
-        """
-        Discard all modifications and close the session.
-        
-        Args:
-            session_id: Modify session ID
-            instance_name: Optional instance name.
-        
-        Returns:
-            List of discarded changes.
-        """
-        instance = InstanceRegistry.get_instance(instance_name)
-        body = {"session_id": session_id}
-        return await make_request(instance, "POST", "/modify/session/rollback", json=body)
+        if mvid:
+            body["mvid"] = mvid
+        return await make_request(instance, "POST", "/modification/save", json=body)

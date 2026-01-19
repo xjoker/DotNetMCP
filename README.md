@@ -1,212 +1,163 @@
-# DotNet MCP - AI 静态逆向工程 MCP 服务
+# DotNet MCP Project
 
-[![.NET](https://img.shields.io/badge/.NET-9.0-512BD4)](https://dotnet.microsoft.com/)
-[![Python](https://img.shields.io/badge/Python-3.12+-3776AB)](https://python.org/)
-[![MCP](https://img.shields.io/badge/MCP-Protocol-orange)](https://modelcontextprotocol.io/)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-70%2B%20Passing-brightgreen)]()
+## 项目概述
+基于 MCP (Model Context Protocol) 的 .NET 程序集逆向工程和修改工具。
 
-> 为 AI 提供 .NET 托管代码静态逆向工程能力的 MCP 服务
-
-## 🎯 项目概述
-
-DotNet MCP 是一个专为 AI 设计的 .NET 程序集分析与修改服务，采用 MCP (Model Context Protocol) 协议，使 LLM 能够直接分析和修改 .NET 托管代码。
-
-### 核心能力
-
-| 类别 | 功能 |
-|-----|------|
-| **元数据读取** | 程序集、类型、方法、属性、字段信息 |
-| **反编译** | IL → C# 源码（ILSpy 引擎） |
-| **搜索** | 类型/方法/字符串全文搜索 |
-| **交叉引用** | 调用图、引用追踪 |
-| **编译** | C# 源码 → 程序集（Roslyn） |
-
-### 支持平台
-
-✅ .NET Framework 2.0-4.8.x | ✅ .NET Core 1.0-3.1 | ✅ .NET 5-10+  
-✅ .NET Standard | ✅ Mono | ✅ Xamarin/MAUI  
-❌ IL2CPP | ❌ NativeAOT
-
----
-
-## 🏗️ 架构
+## 架构
 
 ```
-┌─────────────────┐      HTTP/REST      ┌──────────────────────┐
-│   AI / LLM      │◄───────────────────►│   Python MCP Server  │
-│  (Claude, etc)  │      MCP Protocol   │   (FastMCP 2.0+)     │
-└─────────────────┘                     │   Port: 8651         │
-                                        └──────────┬───────────┘
-                                                   │
-                                              HTTP/REST
-                                                   │
-                                        ┌──────────▼───────────┐
-                                        │   C# Backend Service │
-                                        │   (ASP.NET Core 9.0) │
-                                        │   Port: 8650         │
-                                        ├──────────────────────┤
-                                        │  • Mono.Cecil        │
-                                        │  • ILSpy 9.1         │
-                                        │  • Roslyn 5.0        │
-                                        └──────────────────────┘
+┌─────────────────┐
+│   AI Client     │ (Claude/Cursor)
+│  (MCP Client)   │
+└────────┬────────┘
+         │ MCP Protocol (HTTP/stdio)
+         ▼
+┌─────────────────┐
+│  Python MCP     │
+│     Server      │ (FastMCP)
+└────────┬────────┘
+         │ REST API (HTTP)
+         ▼
+┌─────────────────┐
+│   C# Backend    │
+│    Service      │ (ASP.NET Core + Mono.Cecil)
+└─────────────────┘
 ```
 
----
+## 功能模块
 
-## 📦 后端服务架构
+### Phase 1: 基础设施 ✅
+- **Cecil 集成**: 程序集加载和上下文管理
+- **ID 系统**: MemberId, LocationId 编解码
+- **分页系统**: Cursor-based 分页和切片
+- **Roslyn 编译**: C# 代码运行时编译
 
-### Core 模块
+### Phase 2: 分析能力 ✅
+- **索引服务**: TypeIndex, MemberIndex
+- **搜索服务**: 统一搜索接口
+- **反编译**: 基于 ILSpy 的 C# 反编译
+- **交叉引用**: 类型和方法引用查找
+- **调用图**: 方法调用图构建
 
-| 模块 | 说明 | 测试覆盖 |
-|-----|------|---------|
-| **Context** | 程序集加载与上下文管理 | ✅ 12 tests |
-| **Identity** | MemberId/LocationId 编解码 | ✅ 20 tests |
-| **Paging** | 游标分页与数据切片 | ✅ 27 tests |
-| **Compilation** | Roslyn C# 编译服务 | ✅ 11 tests |
+### Phase 3: 修改能力 ✅
+- **ILBuilder**: IL 指令序列构建器
+- **CodeInjector**: 代码注入器
+- **AssemblyRewriter**: 程序集重写器
+- **TypeFactory**: 类型工厂
+- **DiffComparator**: 差异对比器
 
-### 关键类
+### Phase 4: MCP 集成 🚧
+- **Python MCP Server**: FastMCP 框架
+- **工具注册**: 分析和修改工具
+- **REST API 适配**: Python ↔ C# 对接
 
-```
-Core/
-├── Context/
-│   ├── AssemblyContext.cs      # 程序集加载、生命周期管理
-│   └── CustomAssemblyResolver.cs # 三级依赖解析策略
-├── Identity/
-│   ├── MemberIdCodec.cs        # {mvid}:{token}:{kind}
-│   ├── LocationIdCodec.cs      # {memberId}@{offset}
-│   ├── SignatureBuilder.cs     # 泛型签名构建
-│   └── MemberIdGenerator.cs    # Cecil 成员 → ID
-├── Paging/
-│   ├── CursorCodec.cs          # Base64 游标编解码
-│   ├── PagingService.cs        # 游标分页 (50/500)
-│   └── SlicingService.cs       # 数据切片/批量
-└── Compilation/
-    ├── CompilationService.cs   # C# 源码编译
-    └── ReferenceAssemblyProvider.cs # 引用程序集管理
-```
+## 快速开始
 
----
-
-## 🚀 快速开始
-
-### 前置条件
-
-- Python >= 3.12 (推荐 3.14)
-- .NET SDK 9.0
-- Docker（可选，用于部署）
-
-### 1. 启动后端服务
+### 启动后端服务
 
 ```bash
-cd backend-service/src/DotNetMcp.Backend
-dotnet run
-# 服务启动于 http://localhost:8650
+cd backend-service
+dotnet run --project src/DotNetMcp.Backend
 ```
 
-### 2. 启动 MCP Server
+服务将在 `http://localhost:5000` 启动。
+
+### 启动 MCP Server
 
 ```bash
 cd mcp-server
-pip install -r requirements.txt
 python dotnetmcp_server.py
-# MCP 服务启动于 http://localhost:8651
 ```
 
-### 3. 配置 AI 客户端
+### 加载程序集
 
-```json
-{
-  "mcpServers": {
-    "dotnetmcp": {
-      "url": "http://localhost:8651/mcp/v1",
-      "transport": "streamable-http"
-    }
-  }
-}
+```bash
+curl -X POST http://localhost:5000/assembly/load \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/path/to/assembly.dll"}'
 ```
 
----
+### 注入代码示例
 
-## 🧪 测试
+```bash
+curl -X POST http://localhost:5000/modification/inject/entry \
+  -H "Content-Type: application/json" \
+  -d '{
+    "methodFullName": "MyApp.Program::Main",
+    "instructions": [
+      {"opCode": "ldstr", "stringValue": "Hello from injected code!"},
+      {"opCode": "call", "stringValue": "System.Console::WriteLine"}
+    ]
+  }'
+```
+
+### 保存修改后的程序集
+
+```bash
+curl -X POST http://localhost:5000/modification/save \
+  -H "Content-Type: application/json" \
+  -d '{"outputPath": "/tmp/modified.dll"}'
+```
+
+## REST API 端点
+
+### Assembly Management
+- `POST /assembly/load` - 加载程序集
+- `GET /assembly/info` - 获取程序集信息
+- `GET /health` - 健康检查
+
+### Modification
+- `POST /modification/inject/entry` - 注入方法入口代码
+- `POST /modification/replace/body` - 替换方法体
+- `POST /modification/type/add` - 添加新类型
+- `POST /modification/method/add` - 添加方法
+- `POST /modification/save` - 保存程序集
+
+## MCP 工具
+
+### Analysis Tools
+- `get_assembly_info` - 获取程序集信息
+- `get_type_source` - 获取类型源码
+- `search_types_by_keyword` - 搜索类型
+
+### Modification Tools
+- `inject_method_entry` - 注入方法入口
+- `replace_method_body` - 替换方法体
+- `add_type` - 添加类型
+- `add_method` - 添加方法
+- `save_assembly` - 保存程序集
+
+## 测试
 
 ```bash
 cd backend-service
 dotnet test
 ```
 
-**当前测试状态**：
-- ✅ 70+ 单元测试
-- ✅ 4 集成测试
-- ✅ 100% 核心模块覆盖
+当前测试状态: **113 个测试全部通过** ✅
 
----
+## 依赖
 
-## 📖 API 参考
+### C# Backend
+- Mono.Cecil - 程序集操作
+- ILSpy (ICSharpCode.Decompiler) - 反编译
+- Microsoft.CodeAnalysis (Roslyn) - C# 编译
 
-### MemberId 格式
+### Python MCP Server
+- fastmcp - MCP 框架
+- httpx - HTTP 客户端
 
-```
-{mvid}:{token}:{kind}
+## 开发状态
 
-示例: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6:06001234:M
+| Phase | 状态 | 测试 |
+|-------|------|------|
+| Phase 1: 基础设施 | ✅ | 74 个 |
+| Phase 2: 分析能力 | ✅ | 19 个 |
+| Phase 3: 修改能力 | ✅ | 20 个 |
+| Phase 4: MCP 集成 | 🚧 | - |
 
-- mvid: 模块版本 ID (32 字符十六进制)
-- token: 元数据 Token (8 字符十六进制)
-- kind: 成员类型 (T=Type, M=Method, F=Field, P=Property, E=Event)
-```
+**总测试数**: 113 个 ✅
 
-### LocationId 格式
+## License
 
-```
-{memberId}@{offset}
-
-示例: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6:06001234:M@001A
-
-- offset: IL 偏移量 (4 字符十六进制)
-```
-
-### REST API 端点
-
-| 端点 | 方法 | 说明 |
-|-----|------|------|
-| `/assembly/load` | POST | 加载程序集 |
-| `/assembly/info` | GET | 获取程序集信息 |
-| `/health` | GET | 健康检查 |
-
----
-
-## � 技术栈
-
-| 组件 | 版本 | 用途 |
-|-----|------|------|
-| .NET SDK | 9.0 | 后端运行时 |
-| Mono.Cecil | 0.11.6 | 元数据读写 |
-| ILSpy | 9.1.0 | 反编译引擎 |
-| Roslyn | 5.0.0 | C# 编译器 |
-| FastMCP | 2.0+ | MCP 协议 |
-| httpx | 0.28+ | HTTP 客户端 |
-
----
-
-## 📁 项目结构
-
-```
-DotNetMCP/
-├── backend-service/           # C# 后端服务
-│   ├── src/DotNetMcp.Backend/ # 主项目
-│   └── tests/                 # 单元/集成测试
-├── mcp-server/                # Python MCP 服务
-│   ├── dotnetmcp_server.py    # 入口
-│   └── src/server/            # 服务模块
-├── docker/                    # Docker 配置
-├── DEVELOPMENT.md             # 开发指南
-├── TECH_STACK.md              # 技术栈详情
-└── AGENTS.md                  # AI 开发指南
-```
-
----
-
-## � 许可证
-
-MIT License
+MIT
