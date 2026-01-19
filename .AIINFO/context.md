@@ -1,33 +1,28 @@
 # DotNet MCP 项目上下文
 
 ## 会话信息
-- **时间**: 2026-01-19 10:56 (UTC+8)
-- **阶段**: ✅ Phase 1 全部完成！
+- **时间**: 2026-01-19 10:58 (UTC+8)
+- **阶段**: Phase 2 Week 1-2 完成 ✅
 
-## 最新完成：Phase 1 Week 7 - 测试与文档
+## 最新完成：Phase 2 Week 1-2 - 索引构建
 
 ### 交付物
-1. **端到端集成测试** (4 个)
-   - LoadAssembly_GenerateIds_ShouldWork
-   - LoadAssembly_GetInfo_ShouldReturnValidData
-   - CompileAndAnalyze_ShouldWork
-   - FullWorkflow_LoadAnalyzeGenerateIds_ShouldComplete
+1. **TypeIndex.cs** (176 行)
+   - 类型索引，按 ID/名称/命名空间查询
+   - 全文搜索功能
 
-2. **README.md 更新**
-   - 完整架构图
-   - API 参考文档
-   - 核心模块说明
-   - 测试状态徽章
+2. **MemberIndex.cs** (190 行)
+   - 成员索引，按 ID/名称/声明类型查询
+   - 按种类过滤和统计
 
-### Phase 1 完整测试报告
-| 周 | 模块 | 测试数 | 状态 |
-|----|------|--------|------|
-| Week 1-2 | Cecil 集成 | 12 | ✅ |
-| Week 3 | ID 系统 | 20 | ✅ |
-| Week 4 | 分页切片 | 27 | ✅ |
-| Week 5-6 | Roslyn 编译 | 11 | ✅ |
-| Week 7 | 集成测试 | 4 | ✅ |
-| **总计** | | **74** | **100%** |
+3. **IndexBuilder.cs** (268 行)
+   - 从 AssemblyContext 构建索引
+   - 类型/方法/字段/属性/事件索引
 
-## 下一阶段：Phase 2 - 分析能力
-准备就绪！
+### 测试报告
+| 阶段 | 新增测试 | 累计通过 |
+|-----|---------|---------|
+| Phase 1 | 74 | 74 |
+| Phase 2 Week 1-2 | 8 | **82** |
+
+## 下一步：Phase 2 Week 3 - 搜索服务
