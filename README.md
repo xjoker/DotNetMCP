@@ -8,24 +8,24 @@
 
 ## 架构
 
+```mermaid
+graph TB
+    subgraph "AI Client"
+        A["Claude / Cursor"]
+    end
+    
+    subgraph "MCP Server"
+        B["Python MCP Server<br/>(FastMCP)"]
+    end
+    
+    subgraph "Backend"
+        C["C# Backend Service<br/>(ASP.NET Core + Mono.Cecil)"]
+    end
+    
+    A -->|"MCP Protocol<br/>(HTTP/stdio)"| B
+    B -->|"REST API<br/>(HTTP)"| C
 ```
-┌─────────────────┐
-│   AI Client     │ (Claude/Cursor)
-│  (MCP Client)   │
-└────────┬────────┘
-         │ MCP Protocol (HTTP/stdio)
-         ▼
-┌─────────────────┐
-│  Python MCP     │
-│     Server      │ (FastMCP)
-└────────┬────────┘
-         │ REST API (HTTP)
-         ▼
-┌─────────────────┐
-│   C# Backend    │
-│    Service      │ (ASP.NET Core + Mono.Cecil)
-└─────────────────┘
-```
+
 
 ## 功能模块
 

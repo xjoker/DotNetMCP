@@ -1,10 +1,10 @@
 # DotNet MCP - 开发状态总览
 
-> 最后更新: 2026-01-19 16:37
+> 最后更新: 2026-01-19 18:55
 
 ---
 
-## 1. MCP 工具实现状态 ✅ 100% 完成
+## 1. MCP 工具实现状态
 
 ### 1.1 统计摘要
 
@@ -14,95 +14,92 @@
 | 修改工具 | 5 | 5 | **100%** ✅ |
 | 实例管理 | 7 | 7 | **100%** ✅ |
 | 批量操作 | 3 | 3 | **100%** ✅ |
-| **总计** | **24** | **24** | **100%** ✅ |
+| 资源管理 | 6 | 6 | **100%** ✅ |
+| 传输工具 | 3 | 3 | **100%** ✅ |
+| **总计** | **33** | **33** | **100%** ✅ |
 
-### 1.2 详细状态表
+### 1.2 新增功能 (2026-01-19)
 
-#### 分析工具 (9 个) ✅
-
-| 工具 | Python MCP | C# REST API | 状态 |
-|------|:----------:|:-----------:|:----:|
-| `get_assembly_info` | ✅ | `GET /assembly/info` | ✅ |
-| `get_type_source` | ✅ | `GET /analysis/type/{name}/source` | ✅ |
-| `get_method_by_name` | ✅ | `GET /analysis/type/{name}/method/{name}` | ✅ |
-| `get_type_info` | ✅ | `GET /analysis/type/{name}/info` | ✅ |
-| `search_types_by_keyword` | ✅ | `GET /analysis/search/types` | ✅ |
-| `search_string_literals` | ✅ | `GET /analysis/search/strings` | ✅ |
-| `get_xrefs_to_type` | ✅ | `GET /analysis/xrefs/type/{name}` | ✅ |
-| `get_xrefs_to_method` | ✅ | `GET /analysis/xrefs/method/{type}/{method}` | ✅ |
-| `build_call_graph` | ✅ | `GET /analysis/callgraph/{type}/{method}` | ✅ |
-
-#### 修改工具 (5 个) ✅
+#### 资源管理工具 (6 个) ✅
 
 | 工具 | Python MCP | C# REST API | 状态 |
 |------|:----------:|:-----------:|:----:|
-| `inject_method_entry` | ✅ | `POST /modification/inject/entry` | ✅ |
-| `replace_method_body` | ✅ | `POST /modification/replace/body` | ✅ |
-| `add_type` | ✅ | `POST /modification/type/add` | ✅ |
-| `add_method` | ✅ | `POST /modification/method/add` | ✅ |
-| `save_assembly` | ✅ | `POST /modification/save` | ✅ |
+| `list_resources` | ✅ | `GET /resources/list` | ✅ |
+| `get_resource` | ✅ | `GET /resources/{name}` | ⚠️ |
+| `add_resource` | ✅ | `POST /resources/add` | ✅ |
+| `replace_resource` | ✅ | `POST /resources/replace` | ⏭️ |
+| `remove_resource` | ✅ | `DELETE /resources/{name}` | ✅ |
+| `export_all_resources` | ✅ | `GET /resources/export` | ❌ |
 
-#### 实例管理工具 (7 个) ✅
-
-| 工具 | Python MCP | C# REST API | 状态 |
-|------|:----------:|:-----------:|:----:|
-| `list_instances` | ✅ | `GET /instance/list` | ✅ |
-| `get_instance_info` | ✅ | `GET /instance/{mvid}` | ✅ |
-| `set_default_instance` | ✅ | `PUT /instance/{mvid}/default` | ✅ |
-| `remove_instance` | ✅ | `DELETE /instance/{mvid}` | ✅ |
-| `get_analysis_status` | ✅ | `GET /instance/status` | ✅ |
-| `clear_cache` | ✅ | `POST /instance/cache/clear` | ✅ |
-| `health_check_instances` | ✅ | `GET /instance/health` | ✅ |
-
-#### 批量工具 (3 个) ✅
+#### 传输工具 (3 个) ✅
 
 | 工具 | Python MCP | C# REST API | 状态 |
 |------|:----------:|:-----------:|:----:|
-| `batch_get_type_source` | ✅ | `POST /analysis/batch/sources` | ✅ |
-| `batch_get_method_by_name` | ✅ | `POST /analysis/batch/methods` | ✅ |
-| `batch_get_xrefs` | ✅ | `POST /analysis/batch/xrefs` | ✅ |
+| `create_transfer_token` | ✅ | `POST /transfer/token/create` | ✅ |
+| `get_transfer_token_status` | ✅ | `GET /transfer/token/status` | ✅ |
+| `revoke_transfer_token` | ✅ | `POST /transfer/token/revoke` | ✅ |
+
+#### 独立大文件 API (2 个) ✅
+
+| 端点 | 方法 | 描述 | 状态 |
+|------|------|------|:----:|
+| `/transfer/upload` | POST | 大文件上传 | ✅ |
+| `/transfer/download/{name}` | GET | 大文件下载 | ✅ |
 
 ---
 
-## 2. 基础设施状态
+## 2. 待修复问题 (P1)
+
+> 测试发现的问题，需要后续修复
+
+| 问题 | 工具/端点 | 原因 | 建议修复 |
+|------|----------|------|----------|
+| 新方法无法立即注入 | `inject_method_entry` | 新添加的方法需重新加载上下文 | 添加上下文刷新机制 |
+| 新方法无法替换 | `replace_method_body` | 同上 | 同上 |
+| export 路由冲突 | `export_all_resources` | 端点被误匹配为资源名 | 改为 `POST /resources/export-all` |
+| replace 无响应 | `replace_resource` | 需调试 | 检查响应序列化 |
+
+---
+
+## 3. 基础设施状态
 
 | 组件 | 状态 | 说明 |
 |------|:----:|------|
-| C# 后端服务 | ✅ | ASP.NET Core 9.0, Mono.Cecil, ILSpy |
-| Python MCP Server | ✅ | FastMCP 2.0, httpx |
-| Dockerfile.backend | ✅ | 多阶段构建 |
+| C# 后端服务 | ✅ | ASP.NET Core **10.0**, Mono.Cecil, ILSpy |
+| Python MCP Server | ✅ | FastMCP 2.14.3, httpx |
+| Dockerfile.backend | ✅ | .NET 10.0 多阶段构建 |
 | Dockerfile.mcp-server | ✅ | Python 3.12 slim |
 | docker-compose.yml | ✅ | 生产编排 |
-| docker-compose.test.yml | ✅ | 测试编排 |
 | 单元测试 | ✅ | 113 个测试通过 |
-| E2E 测试 | 🔸 | 基础框架已有 |
+| MCP 集成测试 | ✅ | 89% 通过 (31/35) |
 
 ---
 
-## 3. 与 jadx-mcp 对比（功能领域）
+## 4. 待完成任务
 
-| 功能 | jadx-mcp | DotNet MCP | 差异 |
-|------|:--------:|:----------:|------|
-| 反编译 | ✅ | ✅ | 同等 |
-| 搜索 | ✅ | ✅ | 同等 |
-| 交叉引用 | ✅ | ✅ | 同等 |
-| 调用图 | ✅ | ✅ | 同等 |
-| 修改能力 | ❌ | ✅ | **领先** |
-| 实例管理 | ✅ | ✅ | 同等 |
-| 批量操作 | ✅ | ✅ | 同等 |
+### P1 - 高优先级
 
-**DotNet MCP 独有优势**: IL 修改能力（注入、替换、新增类型/方法）
+| 任务 | 说明 |
+|------|------|
+| 修复 inject/replace 工具 | 新添加方法无法立即操作 |
+| 修复 export_all 路由 | 端点路由冲突 |
+| 更新文档 ASCII → mermaid | 已部分完成 |
 
----
+### P2 - 中优先级
 
-## 4. 待完成任务 (P3 - 可选增强)
+| 任务 | 说明 |
+|------|------|
+| 签名管理工具 | get_signature, remove_signature, resign |
+| 传输 API 增强 | 速率限制、文件类型验证 |
+| 批量代码下载 | ZIP 打包下载 |
 
-| 任务 | 优先级 | 说明 |
-|------|:------:|------|
-| 会话管理 | P3 | begin/commit/rollback 事务 |
-| 更多修改工具 | P3 | wrap_method, add_attribute 等 |
-| CI/CD 集成 | P3 | GitHub Actions |
-| 边界条件测试 | P3 | 空输入/超大输入/并发 |
+### P3 - 低优先级
+
+| 任务 | 说明 |
+|------|------|
+| 会话管理 | begin/commit/rollback 事务 |
+| CI/CD 集成 | GitHub Actions |
+| 性能优化 | 并发测试、内存优化 |
 
 ---
 
@@ -115,9 +112,6 @@ cd docker && docker-compose up -d
 # 验证健康状态
 curl http://localhost:8650/health
 curl http://localhost:8651/health
-
-# 运行测试
-cd docker && docker-compose -f docker-compose.test.yml up --build
 ```
 
 ---
@@ -126,5 +120,7 @@ cd docker && docker-compose -f docker-compose.test.yml up --build
 
 | 日期 | 变更 |
 |------|------|
+| 2026-01-19 18:55 | 添加资源管理(6)+传输工具(3)，工具总数 24→33 |
+| 2026-01-19 18:40 | 升级到 .NET 10.0 |
 | 2026-01-19 16:37 | P0-P2 全部完成，24/24 工具就绪 |
-| 2026-01-19 | 初始版本 |
+
