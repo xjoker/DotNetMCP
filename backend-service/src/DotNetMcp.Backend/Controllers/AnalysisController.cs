@@ -31,6 +31,17 @@ public class AnalysisController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// 注销程序集上下文
+    /// </summary>
+    public static void UnregisterContext(string key)
+    {
+        lock (_lock)
+        {
+            _contexts.Remove(key);
+        }
+    }
+
     private AssemblyContext? GetContext(string? mvid = null)
     {
         lock (_lock)

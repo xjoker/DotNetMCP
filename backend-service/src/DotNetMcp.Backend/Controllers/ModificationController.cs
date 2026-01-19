@@ -211,6 +211,17 @@ public class ModificationController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// 注销程序集上下文
+    /// </summary>
+    public static void UnregisterContext(string mvid)
+    {
+        lock (_lock)
+        {
+            _contexts.Remove(mvid);
+        }
+    }
+
     private AssemblyContext? GetContext(string? mvid)
     {
         if (string.IsNullOrEmpty(mvid))

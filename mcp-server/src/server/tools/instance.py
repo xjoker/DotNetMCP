@@ -2,12 +2,13 @@
 Instance Management Tools - MCP tools for managing backend instances
 
 Tools for listing, adding, removing instances and checking status.
+Updated to match the C# REST API endpoints.
 """
 
 from fastmcp import FastMCP
 
 from ..instance_registry import InstanceRegistry
-from ..config import Config
+from ..config import Config, make_request
 
 
 def register_tools(mcp: FastMCP):
@@ -16,111 +17,107 @@ def register_tools(mcp: FastMCP):
     @mcp.tool("list_instances")
     async def list_instances() -> dict:
         """
-        List all available backend instances.
+        List all loaded assembly instances.
         
         Returns:
             List of instances with name, status, and loaded assembly info.
         """
+        # Try remote backend first
+        try:
+            default_instance = InstanceRegistry.get_instance()
+            if default_instance:
+                return await make_request(default_instance, "GET", "/instance/list")
+        except Exception:
+            pass
+        
+        # Fallback to local registry
         instances = InstanceRegistry.list_instances()
         return {
-            "instances": [inst.to_dict() for inst in instances],
-            "default": InstanceRegistry.get_default_name()
+            "success": True,
+            "data": {
+                "instances": [inst.to_dict() for inst in instances],
+                "count": len(instances),
+                "default_instance": InstanceRegistry.get_default_name()
+            }
         }
 
-    @mcp.tool("add_instance")
-    async def add_instance(
-        host: str,
-        port: int,
-        name: str = None,
-        token: str = None
-    ) -> dict:
+    @mcp.tool("get_instance_info")
+    async def get_instance_info(mvid: str) -> dict:
         """
-        Add a new backend instance connection.
-        
-        Requires allow_dynamic_instances=true in config.
+        Get detailed information about a specific instance.
         
         Args:
-            host: Backend service host
-            port: Backend service port
-            name: Optional custom name (auto-generated if not provided)
-            token: Optional authentication token
+            mvid: The MVID of the assembly instance
         
         Returns:
-            Instance info if successful.
+            Instance details including types count, memory usage.
         """
-        if not Config.allow_dynamic_instances:
-            return {
-                "success": False,
-                "message": "Dynamic instance addition is disabled. Set allow_dynamic_instances=true in config."
-            }
-        
-        return await InstanceRegistry.add_instance(
-            host=host,
-            port=port,
-            name=name,
-            token=token,
-            is_dynamic=True
-        )
-
-    @mcp.tool("remove_instance")
-    async def remove_instance(name: str) -> dict:
-        """
-        Remove a backend instance.
-        
-        Only dynamic instances can be removed.
-        
-        Args:
-            name: Instance name to remove
-        
-        Returns:
-            Success status.
-        """
-        return await InstanceRegistry.remove_instance(name)
+        instance = InstanceRegistry.get_instance()
+        return await make_request(instance, "GET", f"/instance/{mvid}")
 
     @mcp.tool("set_default_instance")
-    async def set_default_instance(name: str) -> dict:
+    async def set_default_instance(mvid: str) -> dict:
         """
         Set the default instance for operations.
         
         Args:
-            name: Instance name to set as default
+            mvid: Instance MVID to set as default
         
         Returns:
             Success status.
         """
-        return InstanceRegistry.set_default(name)
+        instance = InstanceRegistry.get_instance()
+        return await make_request(instance, "PUT", f"/instance/{mvid}/default")
+
+    @mcp.tool("remove_instance")
+    async def remove_instance(mvid: str) -> dict:
+        """
+        Remove/unload an assembly instance.
+        
+        Args:
+            mvid: Instance MVID to remove
+        
+        Returns:
+            Success status.
+        """
+        instance = InstanceRegistry.get_instance()
+        return await make_request(instance, "DELETE", f"/instance/{mvid}")
 
     @mcp.tool("get_analysis_status")
-    async def get_analysis_status(instance_name: str = None) -> dict:
+    async def get_analysis_status(mvid: str = None) -> dict:
         """
         Get detailed analysis status and metrics.
         
         Use this before resource-intensive operations to check system status.
         
         Args:
-            instance_name: Optional instance name
+            mvid: Optional instance MVID
         
         Returns:
-            Status including index percentage, memory usage, active sessions, recommendations.
+            Status including loaded count, memory usage, instance state.
         """
-        instance = InstanceRegistry.get_instance(instance_name)
-        from ..config import make_request
-        return await make_request(instance, "GET", "/status")
+        instance = InstanceRegistry.get_instance()
+        params = {}
+        if mvid:
+            params["mvid"] = mvid
+        return await make_request(instance, "GET", "/instance/status", params=params)
 
     @mcp.tool("clear_cache")
-    async def clear_cache(instance_name: str = None) -> dict:
+    async def clear_cache(mvid: str = None) -> dict:
         """
         Clear analysis cache for an instance.
         
         Args:
-            instance_name: Optional instance name
+            mvid: Optional instance MVID
         
         Returns:
-            Cache clear result.
+            Cache clear result with memory info.
         """
-        instance = InstanceRegistry.get_instance(instance_name)
-        from ..config import make_request
-        return await make_request(instance, "POST", "/cache/clear")
+        instance = InstanceRegistry.get_instance()
+        params = {}
+        if mvid:
+            params["mvid"] = mvid
+        return await make_request(instance, "POST", "/instance/cache/clear", params=params)
 
     @mcp.tool("health_check_instances")
     async def health_check_instances() -> dict:
@@ -130,4 +127,5 @@ def register_tools(mcp: FastMCP):
         Returns:
             Health status for each instance.
         """
-        return await InstanceRegistry.health_check_all()
+        instance = InstanceRegistry.get_instance()
+        return await make_request(instance, "GET", "/instance/health")

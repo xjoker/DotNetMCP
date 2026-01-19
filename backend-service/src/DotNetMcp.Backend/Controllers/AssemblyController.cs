@@ -51,6 +51,7 @@ public class AssemblyController : ControllerBase
                 // 注册到其他控制器以便共享
                 ModificationController.RegisterContext(key, context);
                 AnalysisController.RegisterContext(key, context);
+                InstanceController.RegisterContext(key, context);
             }
 
             return Ok(new

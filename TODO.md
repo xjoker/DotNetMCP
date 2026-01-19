@@ -13,9 +13,9 @@
 |------|----------|--------|--------|
 | 分析工具 | 9 | 9 | **100%** |
 | 修改工具 | 5 | 5 | **100%** |
-| 实例管理 | 7 | 0 | **0%** |
+| 实例管理 | 7 | 7 | **100%** |
 | 批量操作 | 3 | 3 | **100%** |
-| **总计** | **24** | **17** | **71%** |
+| **总计** | **24** | **24** | **100%** |
 
 ### 1.2 详细状态表
 
@@ -47,13 +47,13 @@
 
 | 工具名称 | Python MCP | C# REST API | 后端核心能力 | 状态 |
 |----------|:----------:|:-----------:|:------------:|------|
-| `list_instances` | ✅ | ❌ | 🔸 简单实现 | TODO |
-| `add_instance` | ✅ | ❌ | ❌ 未实现 | TODO |
-| `remove_instance` | ✅ | ❌ | ❌ 未实现 | TODO |
-| `set_default_instance` | ✅ | ❌ | ❌ 未实现 | TODO |
-| `get_analysis_status` | ✅ | ❌ | ❌ 未实现 | TODO |
-| `clear_cache` | ✅ | ❌ | ❌ 未实现 | TODO |
-| `health_check_instances` | ✅ | ❌ | ❌ 未实现 | TODO |
+| `list_instances` | ✅ | ✅ `/instance/list` | ✅ | **完成** |
+| `get_instance_info` | ✅ | ✅ `/instance/{mvid}` | ✅ | **完成** |
+| `set_default_instance` | ✅ | ✅ `/instance/{mvid}/default` | ✅ | **完成** |
+| `remove_instance` | ✅ | ✅ `/instance/{mvid}` (DELETE) | ✅ | **完成** |
+| `get_analysis_status` | ✅ | ✅ `/instance/status` | ✅ | **完成** |
+| `clear_cache` | ✅ | ✅ `/instance/cache/clear` | ✅ | **完成** |
+| `health_check_instances` | ✅ | ✅ `/instance/health` | ✅ | **完成** |
 
 #### 批量工具 (Batch)
 
