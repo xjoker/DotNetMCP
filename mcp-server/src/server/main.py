@@ -15,7 +15,7 @@ from fastmcp import FastMCP
 from .config_loader import load_config
 from .config import Config
 from .instance_registry import InstanceRegistry
-from .tools import analysis, modification, instance, batch
+from .tools import analysis, modification, instance, batch, resources, transfer
 from .resources import register_resources
 from .prompts import register_prompts
 
@@ -31,33 +31,33 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastMCP:
     """创建并配置 MCP 应用"""
     
-    # 加载配置
-    config_path = os.getenv("DOTNETMCP_CONFIG", None)
-    if config_path:
-        load_config(config_path)
+    # 从环境变量获取后端配置
+    backend_host = os.getenv("BACKEND_HOST", "localhost")
+    backend_port = int(os.getenv("BACKEND_PORT", "8650"))
     
-    # 从环境变量覆盖配置
-    backend_host = os.getenv("BACKEND_HOST", Config.backend_host)
-    backend_port = int(os.getenv("BACKEND_PORT", str(Config.backend_port)))
-    
-    # 更新配置
-    Config.backend_host = backend_host
-    Config.backend_port = backend_port
-    
-    # 初始化实例注册表
-    InstanceRegistry.initialize(Config)
+    # 初始化默认后端实例（用于 MCP 工具调用）
+    from .config import BackendInstance
+    InstanceRegistry._instances = {
+        "default": BackendInstance(
+            name="default",
+            host=backend_host,
+            port=backend_port,
+            status="connected"
+        )
+    }
+    InstanceRegistry._default_instance = "default"
+    InstanceRegistry._initialized = True
     
     # 创建 MCP 应用
-    mcp = FastMCP(
-        name="DotNet MCP Server",
-        description="MCP server for .NET assembly analysis and modification"
-    )
+    mcp = FastMCP(name="DotNet MCP Server")
     
     # 注册工具
     analysis.register_tools(mcp)
     modification.register_tools(mcp)
     instance.register_tools(mcp)
     batch.register_tools(mcp)
+    resources.register_tools(mcp)
+    transfer.register_tools(mcp)
     
     # 注册资源和提示词
     register_resources(mcp)

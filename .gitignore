@@ -24,3 +24,6 @@ obj/
 # NuGet
 packages/
 *.nupkg
+
+# AI 工作目录
+.AIINFO/

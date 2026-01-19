@@ -1,5 +1,8 @@
 # DotNet MCP Project
 
+> ⚠️ **开发中 - 尚未可用**  
+> 本项目正在积极开发中，核心功能尚未完全实现和测试。请勿在生产环境使用。
+
 ## 项目概述
 基于 MCP (Model Context Protocol) 的 .NET 程序集逆向工程和修改工具。
 

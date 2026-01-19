@@ -52,6 +52,8 @@ public class AssemblyController : ControllerBase
                 ModificationController.RegisterContext(key, context);
                 AnalysisController.RegisterContext(key, context);
                 InstanceController.RegisterContext(key, context);
+                ResourceController.RegisterContext(key, context);
+                TransferController.RegisterContext(key, context);
             }
 
             return Ok(new

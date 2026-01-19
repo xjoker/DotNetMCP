@@ -15,6 +15,9 @@ FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 COPY --from=build /app .
 
+# 安装 curl 用于健康检查
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # 创建数据目录
 RUN mkdir -p /data/assemblies /app/cache
 

@@ -8,6 +8,7 @@ builder.Services.AddControllers();
 // 注册服务
 builder.Services.AddSingleton<ModificationService>();
 builder.Services.AddSingleton<AnalysisService>();
+builder.Services.AddSingleton<TransferTokenStore>();
 
 // OpenAPI
 builder.Services.AddOpenApi();
