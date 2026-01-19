@@ -1,26 +1,20 @@
-# DotNet MCP 项目任务清单
+# Tasks - DotNetMCP 项目
 
-## ✅ 已完成 - Phase 1: 后端基础设施 (7周)
-- [x] Cecil 集成 (12 tests)
-- [x] ID 系统 (20 tests)
-- [x] 分页切片 (27 tests)
-- [x] Roslyn 编译 (11 tests)
-- [x] 集成测试 (4 tests)
+## Phase 3: 修改能力 (进行中)
+- [x] ILBuilder - IL指令构建器
+- [x] CodeInjector - 代码注入器
+- [x] AssemblyRewriter - 程序集重写器
+- [x] TypeFactory - 类型工厂
+- [x] DiffComparator - 差异对比器
+- [x] 单元测试 (20个)
+- [ ] MCP工具集成
+- [ ] REST API端点
 
-## ✅ 已完成 - Phase 2: 分析能力 (6周)
-- [x] Week 1-2: TypeIndex, MemberIndex, IndexBuilder (8 tests)
-- [x] Week 3: SearchService 搜索服务 (3 tests)
-- [x] Week 4: DecompilerService 反编译 (2 tests)
-- [x] Week 5: CrossReferenceAnalyzer 交叉引用 (3 tests)
-- [x] Week 6: CallGraphAnalyzer 调用图 (3 tests)
+## Phase 4: MCP集成 (待开始)
+- [ ] Python MCP服务器对接
+- [ ] 工具注册
+- [ ] 端到端测试
 
-**总测试数: 93/93 通过 ✅**
-
-## 🔄 待开始 - Phase 3: 修改能力（9周）
-- [ ] IL 生成器
-- [ ] 代码注入
-- [ ] 程序集重写
-- [ ] 差异对比
-
-## 待办 - Phase 4
-- [ ] MCP 集成
+## 已完成
+- [x] Phase 1: 后端基础设施 (74个测试)
+- [x] Phase 2: 分析能力 (19个测试)
