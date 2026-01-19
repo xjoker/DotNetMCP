@@ -1,0 +1,82 @@
+# DotNet MCP - 测试环境 Docker Compose
+# 用于运行端到端测试
+
+services:
+  # C# 后端服务
+  backend:
+    build:
+      context: ../backend-service
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: dotnet-mcp-backend-test
+    ports:
+      - "5095:8650"
+    volumes:
+      - ../tests/fixtures:/data/assemblies:ro
+    environment:
+      - ASPNETCORE_URLS=http://+:8650
+      - ASPNETCORE_ENVIRONMENT=Development
+      - TZ=UTC
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8650/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - test-network
+
+  # Python MCP Server
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mcp-server
+    container_name: dotnet-mcp-server-test
+    ports:
+      - "5096:8651"
+    environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8651
+      - BACKEND_HOST=backend
+      - BACKEND_PORT=8650
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8651/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # 端到端测试运行器
+  test-runner:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.test
+    container_name: dotnet-mcp-test-runner
+    volumes:
+      - ../tests:/tests:ro
+      - test-results:/results
+    environment:
+      - BACKEND_URL=http://backend:8650
+      - MCP_URL=http://mcp-server:8651
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      backend:
+        condition: service_healthy
+      mcp-server:
+        condition: service_healthy
+    networks:
+      - test-network
+    command: [ "pytest", "/tests/e2e", "-v", "--tb=short", "--junitxml=/results/junit.xml" ]
+
+volumes:
+  test-results:
+    driver: local
+
+networks:
+  test-network:
+    driver: bridge

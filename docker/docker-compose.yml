@@ -1,43 +1,63 @@
-version: '3.8'
-
 services:
   # C# 后端服务
   backend:
     build:
       context: ../backend-service
       dockerfile: ../docker/Dockerfile.backend
+    container_name: dotnet-mcp-backend
     ports:
       - "8650:8650"
     volumes:
-      - assemblies:/data/assemblies:ro
+      - assemblies:/data/assemblies
       - backend-cache:/app/cache
     environment:
       - ASPNETCORE_URLS=http://+:8650
       - ASPNETCORE_ENVIRONMENT=Production
+      - TZ=UTC
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8650/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8650/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
+    networks:
+      - mcp-network
 
   # Python MCP Server
   mcp-server:
     build:
-      context: ../mcp-server
-      dockerfile: ../docker/Dockerfile.mcp-server
+      context: ..
+      dockerfile: docker/Dockerfile.mcp-server
+    container_name: dotnet-mcp-server
     ports:
       - "8651:8651"
     volumes:
       - ./config:/app/data/config:ro
     environment:
-      - DOTNETMCP_TRANSPORT=http
-      - DOTNETMCP_PORT=8651
-      - DOTNETMCP_BACKEND_HOST=backend
-      - DOTNETMCP_BACKEND_PORT=8650
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8651
+      - BACKEND_HOST=backend
+      - BACKEND_PORT=8650
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8651/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - mcp-network
 
 volumes:
   assemblies:
+    driver: local
   backend-cache:
+    driver: local
+
+networks:
+  mcp-network:
+    driver: bridge

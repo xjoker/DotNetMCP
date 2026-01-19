@@ -1,0 +1,37 @@
+# Python MCP Server Dockerfile
+FROM --platform=linux/amd64 python:3.12-slim AS base
+
+WORKDIR /app
+
+# 系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制依赖文件
+COPY mcp-server/requirements.txt .
+
+# 安装 Python 依赖
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制源码
+COPY mcp-server/src ./src
+
+# 环境变量
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV TZ=UTC
+
+# MCP Server 配置
+ENV MCP_HOST=0.0.0.0
+ENV MCP_PORT=8651
+ENV BACKEND_HOST=backend
+ENV BACKEND_PORT=8650
+
+EXPOSE 8651
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8651/health || exit 1
+
+# 运行 MCP Server
+CMD ["python", "-m", "src.server.main"]
