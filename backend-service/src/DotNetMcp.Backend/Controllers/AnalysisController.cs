@@ -650,6 +650,116 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 批量下载
+
+    /// <summary>
+    /// 批量下载类型源码 (ZIP)
+    /// </summary>
+    [HttpPost("export/types")]
+    public IActionResult ExportTypes([FromBody] ExportTypesRequest request)
+    {
+        var context = GetContext(request.Mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        if (request.TypeNames == null || request.TypeNames.Count == 0 || request.TypeNames.Count > 100)
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_REQUEST", message = "Must provide 1-100 type names" });
+        }
+
+        var exporter = new DotNetMcp.Backend.Core.Analysis.BatchExporter(_analysisService);
+        var zipBytes = exporter.ExportTypesToZip(context, request.TypeNames, request.Language ?? "csharp");
+
+        return File(zipBytes, "application/zip", $"types_{DateTime.UtcNow:yyyyMMdd_HHmmss}.zip");
+    }
+
+    /// <summary>
+    /// 批量下载方法源码 (ZIP)
+    /// </summary>
+    [HttpPost("export/methods")]
+    public IActionResult ExportMethods([FromBody] ExportMethodsRequest request)
+    {
+        var context = GetContext(request.Mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        if (request.Methods == null || request.Methods.Count == 0 || request.Methods.Count > 100)
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_REQUEST", message = "Must provide 1-100 methods" });
+        }
+
+        var exporter = new DotNetMcp.Backend.Core.Analysis.BatchExporter(_analysisService);
+        var methodRequests = request.Methods.Select(m => new DotNetMcp.Backend.Core.Analysis.MethodRequest
+        {
+            TypeName = m.TypeName,
+            MethodName = m.MethodName
+        }).ToList();
+
+        var zipBytes = exporter.ExportMethodsToZip(context, methodRequests, request.Language ?? "csharp");
+
+        return File(zipBytes, "application/zip", $"methods_{DateTime.UtcNow:yyyyMMdd_HHmmss}.zip");
+    }
+
+    /// <summary>
+    /// 下载完整命名空间源码 (ZIP)
+    /// </summary>
+    [HttpPost("export/namespace")]
+    public IActionResult ExportNamespace([FromBody] ExportNamespaceRequest request)
+    {
+        var context = GetContext(request.Mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NamespacePrefix))
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_REQUEST", message = "Namespace prefix required" });
+        }
+
+        var exporter = new DotNetMcp.Backend.Core.Analysis.BatchExporter(_analysisService);
+        var zipBytes = exporter.ExportNamespaceToZip(context, request.NamespacePrefix, request.Language ?? "csharp");
+
+        var safeName = request.NamespacePrefix.Replace(".", "_");
+        return File(zipBytes, "application/zip", $"namespace_{safeName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.zip");
+    }
+
+    /// <summary>
+    /// 下载类型的完整分析报告 (ZIP)
+    /// </summary>
+    [HttpPost("export/analysis-report")]
+    public IActionResult ExportAnalysisReport([FromBody] ExportAnalysisReportRequest request)
+    {
+        var context = GetContext(request.Mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TypeName))
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_REQUEST", message = "Type name required" });
+        }
+
+        var exporter = new DotNetMcp.Backend.Core.Analysis.BatchExporter(_analysisService);
+        var zipBytes = exporter.ExportAnalysisReportToZip(
+            context,
+            request.TypeName,
+            request.IncludeDependencies ?? true,
+            request.IncludePatterns ?? true,
+            request.IncludeObfuscation ?? true
+        );
+
+        var safeName = request.TypeName.Replace(".", "_");
+        return File(zipBytes, "application/zip", $"analysis_{safeName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.zip");
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>
@@ -778,6 +888,36 @@ public class BatchXRefsRequest
 {
     public List<string>? TypeNames { get; set; }
     public int? Limit { get; set; }
+    public string? Mvid { get; set; }
+}
+
+public class ExportTypesRequest
+{
+    public List<string>? TypeNames { get; set; }
+    public string? Language { get; set; }
+    public string? Mvid { get; set; }
+}
+
+public class ExportMethodsRequest
+{
+    public List<MethodIdentifier>? Methods { get; set; }
+    public string? Language { get; set; }
+    public string? Mvid { get; set; }
+}
+
+public class ExportNamespaceRequest
+{
+    public string NamespacePrefix { get; set; } = "";
+    public string? Language { get; set; }
+    public string? Mvid { get; set; }
+}
+
+public class ExportAnalysisReportRequest
+{
+    public string TypeName { get; set; } = "";
+    public bool? IncludeDependencies { get; set; }
+    public bool? IncludePatterns { get; set; }
+    public bool? IncludeObfuscation { get; set; }
     public string? Mvid { get; set; }
 }
 
