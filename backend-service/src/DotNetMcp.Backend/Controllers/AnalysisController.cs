@@ -575,6 +575,81 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 混淆检测
+
+    /// <summary>
+    /// 检测程序集中的代码混淆
+    /// </summary>
+    [HttpGet("obfuscation")]
+    public IActionResult DetectObfuscation([FromQuery] string? mvid = null)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        var detector = new DotNetMcp.Backend.Core.Analysis.ObfuscationDetector();
+        var result = detector.DetectObfuscation(context);
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                is_obfuscated = result.IsObfuscated,
+                obfuscation_score = Math.Round(result.ObfuscationScore, 2),
+                obfuscated_types = result.ObfuscatedTypes.Select(i => new
+                {
+                    name = i.Name,
+                    severity = i.Severity.ToString(),
+                    evidence = i.Evidence
+                }),
+                obfuscated_methods = result.ObfuscatedMethods.Select(i => new
+                {
+                    name = i.Name,
+                    severity = i.Severity.ToString(),
+                    evidence = i.Evidence
+                }),
+                obfuscated_fields = result.ObfuscatedFields.Select(i => new
+                {
+                    name = i.Name,
+                    severity = i.Severity.ToString(),
+                    evidence = i.Evidence
+                }),
+                control_flow_obfuscations = result.ControlFlowObfuscations.Select(i => new
+                {
+                    method = i.Name,
+                    severity = i.Severity.ToString(),
+                    evidence = i.Evidence
+                }),
+                string_obfuscations = result.StringObfuscations.Select(i => new
+                {
+                    method = i.Name,
+                    severity = i.Severity.ToString(),
+                    evidence = i.Evidence
+                }),
+                junk_code_patterns = result.JunkCodePatterns.Select(i => new
+                {
+                    method = i.Name,
+                    severity = i.Severity.ToString(),
+                    evidence = i.Evidence
+                }),
+                statistics = new
+                {
+                    total_obfuscated_types = result.ObfuscatedTypes.Count,
+                    total_obfuscated_methods = result.ObfuscatedMethods.Count,
+                    total_obfuscated_fields = result.ObfuscatedFields.Count,
+                    control_flow_count = result.ControlFlowObfuscations.Count,
+                    string_encryption_count = result.StringObfuscations.Count,
+                    junk_code_count = result.JunkCodePatterns.Count
+                }
+            }
+        });
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>
