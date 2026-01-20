@@ -15,7 +15,7 @@ from fastmcp import FastMCP
 from .config_loader import load_config
 from .config import Config
 from .instance_registry import InstanceRegistry
-from .tools import analysis, modification, instance, batch, resources, transfer, dependencies, cfg
+from .tools import analysis, modification, instance, batch, resources, transfer, dependencies, cfg, patterns
 from .resources import register_resources
 from .prompts import register_prompts
 
@@ -60,6 +60,7 @@ def create_app() -> FastMCP:
     transfer.register_tools(mcp)
     dependencies.register_tools(mcp)
     cfg.register_tools(mcp)
+    patterns.register_tools(mcp)
     
     # 注册资源和提示词
     register_resources(mcp)

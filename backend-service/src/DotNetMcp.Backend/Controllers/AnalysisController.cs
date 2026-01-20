@@ -514,6 +514,67 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 设计模式检测
+
+    /// <summary>
+    /// 检测程序集中的设计模式
+    /// </summary>
+    [HttpGet("patterns")]
+    public IActionResult DetectPatterns([FromQuery] double minConfidence = 0.5, [FromQuery] string? mvid = null)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        minConfidence = Math.Clamp(minConfidence, 0.0, 1.0);
+
+        var detector = new DotNetMcp.Backend.Core.Analysis.PatternDetector();
+        var result = detector.DetectPatterns(context);
+
+        // 按置信度过滤
+        var filteredPatterns = result.Patterns
+            .Where(p => p.Confidence >= minConfidence)
+            .OrderByDescending(p => p.Confidence)
+            .ToList();
+
+        // 按模式类型分组统计
+        var patternStats = filteredPatterns
+            .GroupBy(p => p.PatternType)
+            .Select(g => new
+            {
+                pattern = g.Key.ToString(),
+                count = g.Count(),
+                avg_confidence = g.Average(p => p.Confidence)
+            })
+            .OrderByDescending(s => s.count)
+            .ToList();
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                patterns = filteredPatterns.Select(p => new
+                {
+                    pattern_type = p.PatternType.ToString(),
+                    type_name = p.TypeName,
+                    confidence = Math.Round(p.Confidence, 2),
+                    evidence = p.Evidence
+                }),
+                statistics = new
+                {
+                    total_detected = filteredPatterns.Count,
+                    by_pattern = patternStats,
+                    min_confidence = minConfidence
+                }
+            }
+        });
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>
