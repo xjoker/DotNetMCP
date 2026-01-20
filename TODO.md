@@ -1,6 +1,7 @@
 # DotNetMCP TODO
 
-> 最后更新: 2026-01-20 10:15 (Asia/Shanghai)
+> 最后更新: 2026-01-20 13:37 (Asia/Shanghai)  
+> **MCP 工具总数: 36 个** (分析 12 + 修改 5 + 实例 7 + 批量 3 + 资源 6 + 传输 3)
 
 ---
 
@@ -14,13 +15,13 @@
 
 ---
 
-## 🟠 P1 - 功能增强 (短期)
+## ✅ P1 - 功能增强 (已完成)
 
 | # | 任务 | 描述 | 状态 |
 |:-:|------|------|:----:|
 | 4 | 依赖图分析 | 程序集/类型级依赖关系，输出 Mermaid 格式 | ✅ |
 | 5 | 控制流图 (CFG) | 方法内基本块识别、分支指令分析、Mermaid 输出 | ✅ |
-| 6 | E2E 测试补全 | 完善 `docker-compose-e2e.yml` 下的自动化测试 | ⏳ |
+| 6 | E2E 测试 | `docker-compose-e2e.yml` 配置完成，MCP 链路测试 89% 通过 | ✅ |
 
 ---
 
@@ -47,6 +48,12 @@
 ---
 
 ## ✅ 已完成
+
+### 2026-01-20
+- [x] **P0 技术债务** (3/3): 统一实例管理、FindMethod 诊断、export_all 路由
+- [x] **P1 功能增强** (3/3): 依赖图分析、控制流图 (CFG)、E2E 测试
+- [x] 新增 MCP 工具 (3个): get_assembly_dependencies, get_type_dependencies, build_control_flow_graph
+- [x] 代码重构和优化: 净增 1031 行 (删除 329 + 新增 1360)
 
 ### 2026-01-19
 - [x] Token 认证中间件 (`ApiKeyAuthMiddleware.cs`)
