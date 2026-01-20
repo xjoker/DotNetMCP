@@ -435,6 +435,85 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 控制流图
+
+    /// <summary>
+    /// 构建方法的控制流图
+    /// </summary>
+    [HttpGet("cfg/{typeName}/{methodName}")]
+    public IActionResult BuildControlFlowGraph(string typeName, string methodName, [FromQuery] string format = "json", [FromQuery] string? mvid = null)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        var builder = new DotNetMcp.Backend.Core.Analysis.ControlFlowGraphBuilder();
+        var cfg = builder.BuildCFG(context, Uri.UnescapeDataString(typeName), Uri.UnescapeDataString(methodName));
+
+        if (!string.IsNullOrEmpty(cfg.Error))
+        {
+            return BadRequest(new { success = false, error_code = "CFG_BUILD_FAILED", message = cfg.Error });
+        }
+
+        if (format.ToLowerInvariant() == "mermaid")
+        {
+            var mermaid = builder.GenerateMermaid(cfg);
+            return Ok(new
+            {
+                success = true,
+                data = new
+                {
+                    format = "mermaid",
+                    diagram = mermaid,
+                    method_name = cfg.MethodName,
+                    basic_block_count = cfg.BasicBlocks.Count,
+                    edge_count = cfg.Edges.Count
+                }
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                method_name = cfg.MethodName,
+                return_type = cfg.ReturnType,
+                basic_blocks = cfg.BasicBlocks.Select(b => new
+                {
+                    id = b.Id,
+                    start_offset = b.StartOffset,
+                    end_offset = b.EndOffset,
+                    terminator_type = b.TerminatorType.ToString(),
+                    instruction_count = b.Instructions.Count,
+                    instructions = b.Instructions.Select(i => new
+                    {
+                        offset = i.Offset,
+                        opcode = i.OpCode,
+                        operand = i.Operand
+                    })
+                }),
+                edges = cfg.Edges.Select(e => new
+                {
+                    from_block = e.FromBlock,
+                    to_block = e.ToBlock,
+                    edge_type = e.EdgeType.ToString(),
+                    label = e.Label
+                }),
+                statistics = new
+                {
+                    basic_block_count = cfg.BasicBlocks.Count,
+                    edge_count = cfg.Edges.Count,
+                    total_instructions = cfg.BasicBlocks.Sum(b => b.Instructions.Count)
+                }
+            }
+        });
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>
