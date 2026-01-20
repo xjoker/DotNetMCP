@@ -4,13 +4,13 @@
 
 ---
 
-## 🔴 P0 - 技术债务 (必须先修)
+## ✅ P0 - 技术债务 (已完成)
 
-| # | 任务 | 描述 | 预估 |
+| # | 任务 | 描述 | 状态 |
 |:-:|------|------|:----:|
-| 1 | 统一实例管理 | 创建 `InstanceRegistry` 单例服务，替换各 Controller 分散的 `_contexts` 字典 | 2h |
-| 2 | 修复 inject/replace | 新添加的方法无法立即注入/替换，需刷新上下文或同步更新内部缓存 | 1h |
-| 3 | 修复 export_all 路由 | `GET /resources/export` 被误匹配为资源名，改为 `POST /resources/export-all` | 30m |
+| 1 | 统一实例管理 | 创建 `InstanceRegistry` 单例服务，替换各 Controller 分散的 `_contexts` 字典 | ✅ |
+| 2 | 修复 inject/replace | 增强 `FindMethod` 诊断信息，找不到方法时显示可用方法 | ✅ |
+| 3 | 修复 export_all 路由 | `GET /resources/export` 被误匹配为资源名，改为 `POST /resources/export-all` | ✅ |
 
 ---
 

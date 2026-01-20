@@ -293,6 +293,11 @@ public class ModificationService
             normalizedName = fullName.Replace("::", ".");
         }
         
+        // 提取预期的类型名和方法名用于诊断
+        var lastDot = normalizedName.LastIndexOf('.');
+        var expectedTypeName = lastDot > 0 ? normalizedName[..lastDot] : "";
+        var expectedMethodName = lastDot > 0 ? normalizedName[(lastDot + 1)..] : normalizedName;
+        
         foreach (var type in context.Assembly!.MainModule.Types)
         {
             // 匹配方法
@@ -314,7 +319,24 @@ public class ModificationService
             }
         }
         
-        _logger.LogWarning("Method not found: {FullName}. Available formats: Namespace.Type.Method or Type::Method", fullName);
+        // 诊断：如果找不到，列出匹配类型中的所有方法
+        var matchingTypes = context.Assembly!.MainModule.Types
+            .Where(t => t.FullName == expectedTypeName)
+            .ToList();
+        
+        if (matchingTypes.Count > 0)
+        {
+            var methods = matchingTypes.SelectMany(t => t.Methods.Select(m => m.Name)).ToList();
+            _logger.LogWarning("Method '{MethodName}' not found in type '{TypeName}'. Available methods: [{Methods}]", 
+                expectedMethodName, expectedTypeName, string.Join(", ", methods));
+        }
+        else
+        {
+            var allTypes = context.Assembly!.MainModule.Types.Select(t => t.FullName).Take(20).ToList();
+            _logger.LogWarning("Type '{TypeName}' not found. Sample types: [{Types}]", 
+                expectedTypeName, string.Join(", ", allTypes));
+        }
+        
         return null;
     }
 
