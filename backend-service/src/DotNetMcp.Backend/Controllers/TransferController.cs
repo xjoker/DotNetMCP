@@ -15,41 +15,15 @@ namespace DotNetMcp.Backend.Controllers
     public class TransferController : ControllerBase
     {
         private readonly TransferTokenStore _tokenStore;
-        private static readonly Dictionary<string, AssemblyContext> _contexts = new();
-        private static readonly object _lock = new();
+        private readonly IInstanceRegistry _registry;
 
-        public TransferController(TransferTokenStore tokenStore)
+        public TransferController(TransferTokenStore tokenStore, IInstanceRegistry registry)
         {
             _tokenStore = tokenStore;
+            _registry = registry;
         }
 
-        public static void RegisterContext(string mvid, AssemblyContext context)
-        {
-            lock (_lock)
-            {
-                _contexts[mvid] = context;
-            }
-        }
-
-        public static void UnregisterContext(string mvid)
-        {
-            lock (_lock)
-            {
-                _contexts.Remove(mvid);
-            }
-        }
-
-        private AssemblyContext? GetContext(string? mvid)
-        {
-            lock (_lock)
-            {
-                if (string.IsNullOrEmpty(mvid))
-                {
-                    return _contexts.Values.FirstOrDefault();
-                }
-                return _contexts.GetValueOrDefault(mvid);
-            }
-        }
+        private AssemblyContext? GetContext(string? mvid) => _registry.Get(mvid);
 
         /// <summary>
         /// Create a transfer token (called via MCP tool)

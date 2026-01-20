@@ -12,42 +12,14 @@ namespace DotNetMcp.Backend.Controllers
     [Route("resources")]
     public class ResourceController : ControllerBase
     {
-        private static readonly Dictionary<string, AssemblyContext> _contexts = new();
-        private static readonly object _lock = new();
+        private readonly IInstanceRegistry _registry;
 
-        /// <summary>
-        /// Register a loaded assembly context
-        /// </summary>
-        public static void RegisterContext(string mvid, AssemblyContext context)
+        public ResourceController(IInstanceRegistry registry)
         {
-            lock (_lock)
-            {
-                _contexts[mvid] = context;
-            }
+            _registry = registry;
         }
 
-        /// <summary>
-        /// Unregister an assembly context
-        /// </summary>
-        public static void UnregisterContext(string mvid)
-        {
-            lock (_lock)
-            {
-                _contexts.Remove(mvid);
-            }
-        }
-
-        private AssemblyContext? GetContext(string? mvid)
-        {
-            lock (_lock)
-            {
-                if (string.IsNullOrEmpty(mvid))
-                {
-                    return _contexts.Values.FirstOrDefault();
-                }
-                return _contexts.GetValueOrDefault(mvid);
-            }
-        }
+        private AssemblyContext? GetContext(string? mvid) => _registry.Get(mvid);
 
         /// <summary>
         /// List all embedded resources in the assembly

@@ -13,17 +13,16 @@ public class ModificationController : ControllerBase
 {
     private readonly ILogger<ModificationController> _logger;
     private readonly ModificationService _modificationService;
-
-    // 共享程序集上下文（临时方案，后续改为注入）
-    private static readonly Dictionary<string, AssemblyContext> _contexts = new();
-    private static readonly object _lock = new();
+    private readonly IInstanceRegistry _registry;
 
     public ModificationController(
         ILogger<ModificationController> logger,
-        ModificationService modificationService)
+        ModificationService modificationService,
+        IInstanceRegistry registry)
     {
         _logger = logger;
         _modificationService = modificationService;
+        _registry = registry;
     }
 
     /// <summary>
@@ -200,43 +199,7 @@ public class ModificationController : ControllerBase
         return Ok(new { success = true, data = result.Data });
     }
 
-    /// <summary>
-    /// 注册程序集上下文（供 AssemblyController 共享使用）
-    /// </summary>
-    public static void RegisterContext(string mvid, AssemblyContext context)
-    {
-        lock (_lock)
-        {
-            _contexts[mvid] = context;
-        }
-    }
-
-    /// <summary>
-    /// 注销程序集上下文
-    /// </summary>
-    public static void UnregisterContext(string mvid)
-    {
-        lock (_lock)
-        {
-            _contexts.Remove(mvid);
-        }
-    }
-
-    private AssemblyContext? GetContext(string? mvid)
-    {
-        if (string.IsNullOrEmpty(mvid))
-        {
-            lock (_lock)
-            {
-                return _contexts.Values.FirstOrDefault();
-            }
-        }
-
-        lock (_lock)
-        {
-            return _contexts.TryGetValue(mvid, out var context) ? context : null;
-        }
-    }
+    private AssemblyContext? GetContext(string? mvid) => _registry.Get(mvid);
 }
 
 #region 请求模型

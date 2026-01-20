@@ -12,45 +12,15 @@ namespace DotNetMcp.Backend.Controllers;
 public class AnalysisController : ControllerBase
 {
     private readonly AnalysisService _analysisService;
-    private static readonly Dictionary<string, AssemblyContext> _contexts = new();
-    private static readonly object _lock = new();
+    private readonly IInstanceRegistry _registry;
 
-    public AnalysisController(AnalysisService analysisService)
+    public AnalysisController(AnalysisService analysisService, IInstanceRegistry registry)
     {
         _analysisService = analysisService;
+        _registry = registry;
     }
 
-    /// <summary>
-    /// 注册程序集上下文（供 AssemblyController 调用）
-    /// </summary>
-    public static void RegisterContext(string key, AssemblyContext context)
-    {
-        lock (_lock)
-        {
-            _contexts[key] = context;
-        }
-    }
-
-    /// <summary>
-    /// 注销程序集上下文
-    /// </summary>
-    public static void UnregisterContext(string key)
-    {
-        lock (_lock)
-        {
-            _contexts.Remove(key);
-        }
-    }
-
-    private AssemblyContext? GetContext(string? mvid = null)
-    {
-        lock (_lock)
-        {
-            if (mvid != null && _contexts.TryGetValue(mvid, out var ctx))
-                return ctx;
-            return _contexts.Values.FirstOrDefault();
-        }
-    }
+    private AssemblyContext? GetContext(string? mvid = null) => _registry.Get(mvid);
 
     #region 反编译
 
