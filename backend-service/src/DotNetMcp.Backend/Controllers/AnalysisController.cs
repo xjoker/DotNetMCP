@@ -325,6 +325,116 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 依赖图
+
+    /// <summary>
+    /// 获取程序集依赖图
+    /// </summary>
+    [HttpGet("dependencies/assembly")]
+    public IActionResult GetAssemblyDependencies([FromQuery] bool includeSystem = false, [FromQuery] string format = "json", [FromQuery] string? mvid = null)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        var builder = new DotNetMcp.Backend.Core.Analysis.DependencyGraphBuilder();
+        var graph = builder.BuildAssemblyDependencies(context);
+
+        if (format.ToLowerInvariant() == "mermaid")
+        {
+            var mermaid = builder.GenerateAssemblyMermaid(graph, includeSystem);
+            return Ok(new
+            {
+                success = true,
+                data = new
+                {
+                    format = "mermaid",
+                    diagram = mermaid,
+                    root_assembly = graph.RootAssembly,
+                    dependency_count = graph.Dependencies.Count
+                }
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                root_assembly = graph.RootAssembly,
+                version = graph.Version,
+                dependencies = graph.Dependencies.Select(d => new
+                {
+                    name = d.Name,
+                    version = d.Version,
+                    is_system = d.IsSystem
+                }),
+                native_modules = graph.NativeModules,
+                total_count = graph.Dependencies.Count
+            }
+        });
+    }
+
+    /// <summary>
+    /// 获取类型依赖图
+    /// </summary>
+    [HttpGet("dependencies/type/{typeName}")]
+    public IActionResult GetTypeDependencies(string typeName, [FromQuery] int maxDepth = 3, [FromQuery] string format = "json", [FromQuery] string? mvid = null)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        maxDepth = Math.Clamp(maxDepth, 1, 5);
+
+        var builder = new DotNetMcp.Backend.Core.Analysis.DependencyGraphBuilder();
+        var graph = builder.BuildTypeDependencies(context, Uri.UnescapeDataString(typeName), maxDepth);
+
+        if (!string.IsNullOrEmpty(graph.Error))
+        {
+            return BadRequest(new { success = false, error_code = "TYPE_NOT_FOUND", message = graph.Error });
+        }
+
+        if (format.ToLowerInvariant() == "mermaid")
+        {
+            var mermaid = builder.GenerateTypeMermaid(graph);
+            return Ok(new
+            {
+                success = true,
+                data = new
+                {
+                    format = "mermaid",
+                    diagram = mermaid,
+                    root_type = graph.RootType,
+                    dependency_count = graph.Dependencies.Count
+                }
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                root_type = graph.RootType,
+                @namespace = graph.Namespace,
+                dependencies = graph.Dependencies.Select(d => new
+                {
+                    target_type = d.TargetType,
+                    kind = d.Kind.ToString(),
+                    is_external = d.IsExternal
+                }),
+                total_count = graph.Dependencies.Count
+            }
+        });
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>
