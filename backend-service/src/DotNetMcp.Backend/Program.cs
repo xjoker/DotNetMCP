@@ -8,9 +8,11 @@ builder.Services.AddControllers();
 
 // 注册服务
 builder.Services.AddSingleton<IInstanceRegistry, InstanceRegistry>();
+builder.Services.AddSingleton<ISessionTransactionManager, SessionTransactionManager>();
 builder.Services.AddSingleton<ModificationService>();
 builder.Services.AddSingleton<AnalysisService>();
 builder.Services.AddSingleton<TransferTokenStore>();
+builder.Services.AddSingleton<SignatureService>();
 
 // OpenAPI
 builder.Services.AddOpenApi();
@@ -29,6 +31,9 @@ if (app.Environment.IsDevelopment())
 
 // API Key 认证中间件
 app.UseApiKeyAuth();
+
+// 传输速率限制中间件
+app.UseTransferRateLimit();
 
 // 映射控制器路由
 app.MapControllers();

@@ -35,15 +35,15 @@
 
 ---
 
-## 🟢 P3 - 可选增强 (长期)
+## ✅ P3 - 可选增强 (已完成 4/5)
 
-| # | 任务 | 描述 |
-|:-:|------|------|
-| 10 | 会话事务 | begin/commit/rollback 修改事务 |
-| 11 | 签名管理 | get_signature, remove_signature, resign |
-| 12 | 传输 API 增强 | 速率限制、文件类型白名单 |
-| 13 | CI/CD 集成 | GitHub Actions 自动构建/测试 |
-| 14 | 性能优化 | 大程序集并发分析、内存优化 |
+| # | 任务 | 描述 | 状态 |
+|:-:|------|------|:----:|
+| 10 | 会话事务 | begin/commit/rollback 修改事务 | ✅ |
+| 11 | 签名管理 | get_signature, remove_signature, resign | ✅ |
+| 12 | 传输 API 增强 | 速率限制、文件类型白名单 | ✅ |
+| 13 | CI/CD 集成 | GitHub Actions 自动构建/测试 | ✅ |
+| 14 | 性能优化 | 大程序集并发分析、内存优化 | ⏳ |
 
 ---
 
