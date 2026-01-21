@@ -246,23 +246,33 @@ public class AnalysisService
 
     #endregion
 
-    #region 交叉引用
+    #region 交叉引用 (增强版 - 基于访问性作用域)
 
     /// <summary>
-    /// 查找类型引用
+    /// 查找类型引用（使用作用域限定的分析器）
     /// </summary>
-    public XRefResult FindReferencesToType(AssemblyContext context, string typeName, int limit = 50)
+    public XRefResult FindReferencesToType(AssemblyContext context, string typeName, int limit = 50, CancellationToken cancellationToken = default)
     {
         try
         {
             var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
             if (type == null)
             {
+                // 搜索嵌套类型
+                foreach (var parentType in context.Assembly?.MainModule.Types ?? Enumerable.Empty<TypeDefinition>())
+                {
+                    type = FindNestedType(parentType, typeName);
+                    if (type != null) break;
+                }
+            }
+
+            if (type == null)
+            {
                 return new XRefResult { IsSuccess = false, ErrorMessage = $"Type '{typeName}' not found", References = new List<CrossReference>() };
             }
 
-            var analyzer = new CrossReferenceAnalyzer(context.Assembly!.MainModule, context.Mvid);
-            var refs = analyzer.FindReferencesToType(type).Take(limit).ToList();
+            var analyzer = new ScopedCrossReferenceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var refs = analyzer.FindReferencesToType(type, cancellationToken).Take(limit).ToList();
 
             return new XRefResult
             {
@@ -270,6 +280,10 @@ public class AnalysisService
                 References = refs,
                 TotalCount = refs.Count
             };
+        }
+        catch (OperationCanceledException)
+        {
+            return new XRefResult { IsSuccess = false, ErrorMessage = "Operation was cancelled", References = new List<CrossReference>() };
         }
         catch (Exception ex)
         {
@@ -279,9 +293,58 @@ public class AnalysisService
     }
 
     /// <summary>
-    /// 查找方法调用
+    /// 查找方法调用（使用作用域限定的分析器）
     /// </summary>
-    public XRefResult FindCallsToMethod(AssemblyContext context, string typeName, string methodName, int limit = 50)
+    public XRefResult FindCallsToMethod(AssemblyContext context, string typeName, string methodName, int limit = 50, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
+            if (type == null)
+            {
+                foreach (var parentType in context.Assembly?.MainModule.Types ?? Enumerable.Empty<TypeDefinition>())
+                {
+                    type = FindNestedType(parentType, typeName);
+                    if (type != null) break;
+                }
+            }
+
+            if (type == null)
+            {
+                return new XRefResult { IsSuccess = false, ErrorMessage = $"Type '{typeName}' not found", References = new List<CrossReference>() };
+            }
+
+            var method = type.Methods.FirstOrDefault(m => m.Name == methodName);
+            if (method == null)
+            {
+                return new XRefResult { IsSuccess = false, ErrorMessage = $"Method '{methodName}' not found", References = new List<CrossReference>() };
+            }
+
+            var analyzer = new ScopedCrossReferenceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var refs = analyzer.FindCallsToMethod(method, cancellationToken).Take(limit).ToList();
+
+            return new XRefResult
+            {
+                IsSuccess = true,
+                References = refs,
+                TotalCount = refs.Count
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            return new XRefResult { IsSuccess = false, ErrorMessage = "Operation was cancelled", References = new List<CrossReference>() };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to find calls to method: {TypeName}.{MethodName}", typeName, methodName);
+            return new XRefResult { IsSuccess = false, ErrorMessage = ex.Message, References = new List<CrossReference>() };
+        }
+    }
+
+    /// <summary>
+    /// 查找虚方法的所有重写
+    /// </summary>
+    public XRefResult FindMethodOverrides(AssemblyContext context, string typeName, string methodName, int limit = 50, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -297,8 +360,8 @@ public class AnalysisService
                 return new XRefResult { IsSuccess = false, ErrorMessage = $"Method '{methodName}' not found", References = new List<CrossReference>() };
             }
 
-            var analyzer = new CrossReferenceAnalyzer(context.Assembly!.MainModule, context.Mvid);
-            var refs = analyzer.FindCallsToMethod(method).Take(limit).ToList();
+            var analyzer = new ScopedCrossReferenceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var refs = analyzer.FindMethodOverrides(method, cancellationToken).Take(limit).ToList();
 
             return new XRefResult
             {
@@ -307,11 +370,68 @@ public class AnalysisService
                 TotalCount = refs.Count
             };
         }
+        catch (OperationCanceledException)
+        {
+            return new XRefResult { IsSuccess = false, ErrorMessage = "Operation was cancelled", References = new List<CrossReference>() };
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to find calls to method: {TypeName}.{MethodName}", typeName, methodName);
+            _logger.LogError(ex, "Failed to find method overrides: {TypeName}.{MethodName}", typeName, methodName);
             return new XRefResult { IsSuccess = false, ErrorMessage = ex.Message, References = new List<CrossReference>() };
         }
+    }
+
+    /// <summary>
+    /// 查找接口方法的所有实现
+    /// </summary>
+    public XRefResult FindInterfaceImplementations(AssemblyContext context, string typeName, string methodName, int limit = 50, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
+            if (type == null)
+            {
+                return new XRefResult { IsSuccess = false, ErrorMessage = $"Type '{typeName}' not found", References = new List<CrossReference>() };
+            }
+
+            var method = type.Methods.FirstOrDefault(m => m.Name == methodName);
+            if (method == null)
+            {
+                return new XRefResult { IsSuccess = false, ErrorMessage = $"Method '{methodName}' not found", References = new List<CrossReference>() };
+            }
+
+            var analyzer = new ScopedCrossReferenceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var refs = analyzer.FindInterfaceImplementations(method, cancellationToken).Take(limit).ToList();
+
+            return new XRefResult
+            {
+                IsSuccess = true,
+                References = refs,
+                TotalCount = refs.Count
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            return new XRefResult { IsSuccess = false, ErrorMessage = "Operation was cancelled", References = new List<CrossReference>() };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to find interface implementations: {TypeName}.{MethodName}", typeName, methodName);
+            return new XRefResult { IsSuccess = false, ErrorMessage = ex.Message, References = new List<CrossReference>() };
+        }
+    }
+
+    private static TypeDefinition? FindNestedType(TypeDefinition parent, string fullName)
+    {
+        foreach (var nested in parent.NestedTypes)
+        {
+            if (nested.FullName == fullName)
+                return nested;
+            var found = FindNestedType(nested, fullName);
+            if (found != null)
+                return found;
+        }
+        return null;
     }
 
     #endregion
@@ -356,6 +476,265 @@ public class AnalysisService
         {
             _logger.LogError(ex, "Failed to build call graph: {TypeName}.{MethodName}", typeName, methodName);
             return new CallGraphResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    #endregion
+
+    #region 增强搜索
+
+    /// <summary>
+    /// 增强搜索 - 支持高级语法、正则、字面量搜索
+    /// </summary>
+    public EnhancedSearchServiceResult EnhancedSearch(
+        AssemblyContext context,
+        string query,
+        string mode = "all",
+        string? namespaceFilter = null,
+        int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var searchMode = mode.ToLowerInvariant() switch
+            {
+                "type" => SearchMode.Type,
+                "member" => SearchMode.Member,
+                "method" => SearchMode.Method,
+                "field" => SearchMode.Field,
+                "property" => SearchMode.Property,
+                "event" => SearchMode.Event,
+                "literal" => SearchMode.Literal,
+                "token" => SearchMode.Token,
+                _ => SearchMode.TypeAndMember
+            };
+
+            var searchService = new EnhancedSearchService(context.Mvid);
+            var result = searchService.Search(
+                context.Assembly!.MainModule,
+                query,
+                searchMode,
+                namespaceFilter,
+                limit,
+                cancellationToken);
+
+            return new EnhancedSearchServiceResult
+            {
+                IsSuccess = true,
+                Items = result.Items,
+                TotalCount = result.TotalCount,
+                HasMore = result.HasMore,
+                SearchDuration = result.SearchDuration,
+                Query = query,
+                Mode = searchMode.ToString()
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            return new EnhancedSearchServiceResult
+            {
+                IsSuccess = false,
+                ErrorMessage = "Search cancelled",
+                Items = Array.Empty<SearchResultItem>()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Enhanced search failed: {Query}", query);
+            return new EnhancedSearchServiceResult
+            {
+                IsSuccess = false,
+                ErrorMessage = ex.Message,
+                Items = Array.Empty<SearchResultItem>()
+            };
+        }
+    }
+
+    #endregion
+
+    #region 增强调用图分析
+
+    /// <summary>
+    /// 构建增强调用图 - 包含委托、反射、Lambda 分析
+    /// </summary>
+    public EnhancedCallGraphResult BuildEnhancedCallGraph(
+        AssemblyContext context,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var analyzer = new EnhancedCallGraphAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var graph = analyzer.BuildCallGraph(cancellationToken);
+            var stats = graph.GetStatistics();
+
+            return new EnhancedCallGraphResult
+            {
+                IsSuccess = true,
+                Statistics = stats,
+                ReflectionCalls = graph.ReflectionCalls,
+                NodeCount = graph.NodeCount,
+                EdgeCount = graph.EdgeCount
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            return new EnhancedCallGraphResult
+            {
+                IsSuccess = false,
+                ErrorMessage = "Analysis cancelled"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Enhanced call graph analysis failed");
+            return new EnhancedCallGraphResult
+            {
+                IsSuccess = false,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    /// <summary>
+    /// 检测递归调用
+    /// </summary>
+    public RecursionDetectionResult DetectRecursion(
+        AssemblyContext context,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var analyzer = new EnhancedCallGraphAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var graph = analyzer.BuildCallGraph(cancellationToken);
+            var recursions = analyzer.DetectRecursion(graph);
+
+            return new RecursionDetectionResult
+            {
+                IsSuccess = true,
+                Recursions = recursions,
+                TotalCount = recursions.Count
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Recursion detection failed");
+            return new RecursionDetectionResult
+            {
+                IsSuccess = false,
+                ErrorMessage = ex.Message,
+                Recursions = new List<RecursionInfo>()
+            };
+        }
+    }
+
+    #endregion
+
+    #region 支配树与数据流分析
+
+    /// <summary>
+    /// 获取方法的支配树分析
+    /// </summary>
+    public DominatorAnalysisResult AnalyzeDominators(
+        AssemblyContext context,
+        string typeName,
+        string methodName)
+    {
+        try
+        {
+            var cfgBuilder = new ControlFlowGraphBuilder();
+            var cfg = cfgBuilder.BuildCFG(context, typeName, methodName);
+
+            if (!string.IsNullOrEmpty(cfg.Error))
+            {
+                return new DominatorAnalysisResult
+                {
+                    IsSuccess = false,
+                    ErrorMessage = cfg.Error
+                };
+            }
+
+            var domAnalyzer = new DominatorAnalyzer(cfg);
+            var domTree = domAnalyzer.ComputeDominatorTree();
+            var pdomTree = domAnalyzer.ComputePostDominatorTree();
+            var frontier = domAnalyzer.ComputeDominanceFrontier(domTree);
+            var controlDep = domAnalyzer.ComputeControlDependence();
+
+            return new DominatorAnalysisResult
+            {
+                IsSuccess = true,
+                MethodName = cfg.MethodName,
+                ImmediateDominators = domTree.ImmediateDominators,
+                DominanceFrontier = frontier.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
+                ControlDependence = controlDep,
+                BlockCount = cfg.BasicBlocks.Count
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Dominator analysis failed: {TypeName}.{MethodName}", typeName, methodName);
+            return new DominatorAnalysisResult
+            {
+                IsSuccess = false,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    /// <summary>
+    /// 获取方法的数据流分析
+    /// </summary>
+    public DataFlowAnalysisResult AnalyzeDataFlow(
+        AssemblyContext context,
+        string typeName,
+        string methodName)
+    {
+        try
+        {
+            var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
+            if (type == null)
+            {
+                return new DataFlowAnalysisResult
+                {
+                    IsSuccess = false,
+                    ErrorMessage = $"Type '{typeName}' not found"
+                };
+            }
+
+            var method = type.Methods.FirstOrDefault(m => m.Name == methodName);
+            if (method == null || !method.HasBody)
+            {
+                return new DataFlowAnalysisResult
+                {
+                    IsSuccess = false,
+                    ErrorMessage = $"Method '{methodName}' not found or has no body"
+                };
+            }
+
+            var cfgBuilder = new ControlFlowGraphBuilder();
+            var cfg = cfgBuilder.BuildCFG(context, typeName, methodName);
+
+            var dfAnalyzer = new DataFlowAnalyzer(cfg);
+            var liveness = dfAnalyzer.ComputeLiveness(method.Body);
+            var reaching = dfAnalyzer.ComputeReachingDefinitions(method.Body);
+
+            return new DataFlowAnalysisResult
+            {
+                IsSuccess = true,
+                MethodName = $"{typeName}.{methodName}",
+                LiveIn = liveness.LiveIn.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
+                LiveOut = liveness.LiveOut.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
+                DefinitionCount = reaching.AllDefinitions.Count,
+                BlockCount = cfg.BasicBlocks.Count
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Data flow analysis failed: {TypeName}.{MethodName}", typeName, methodName);
+            return new DataFlowAnalysisResult
+            {
+                IsSuccess = false,
+                ErrorMessage = ex.Message
+            };
         }
     }
 
@@ -479,6 +858,63 @@ public record CallGraphLevel
 {
     public int Depth { get; init; }
     public required List<string> Methods { get; init; }
+}
+
+// 增强搜索结果
+public record EnhancedSearchServiceResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public required IReadOnlyList<SearchResultItem> Items { get; init; }
+    public int TotalCount { get; init; }
+    public bool HasMore { get; init; }
+    public TimeSpan SearchDuration { get; init; }
+    public string? Query { get; init; }
+    public string? Mode { get; init; }
+}
+
+// 增强调用图结果
+public record EnhancedCallGraphResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public CallGraphStatistics? Statistics { get; init; }
+    public List<ReflectionCallInfo>? ReflectionCalls { get; init; }
+    public int NodeCount { get; init; }
+    public int EdgeCount { get; init; }
+}
+
+// 递归检测结果
+public record RecursionDetectionResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public required List<RecursionInfo> Recursions { get; init; }
+    public int TotalCount { get; init; }
+}
+
+// 支配树分析结果
+public record DominatorAnalysisResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public string? MethodName { get; init; }
+    public Dictionary<string, string?>? ImmediateDominators { get; init; }
+    public Dictionary<string, List<string>>? DominanceFrontier { get; init; }
+    public Dictionary<string, List<string>>? ControlDependence { get; init; }
+    public int BlockCount { get; init; }
+}
+
+// 数据流分析结果
+public record DataFlowAnalysisResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public string? MethodName { get; init; }
+    public Dictionary<string, List<int>>? LiveIn { get; init; }
+    public Dictionary<string, List<int>>? LiveOut { get; init; }
+    public int DefinitionCount { get; init; }
+    public int BlockCount { get; init; }
 }
 
 #endregion

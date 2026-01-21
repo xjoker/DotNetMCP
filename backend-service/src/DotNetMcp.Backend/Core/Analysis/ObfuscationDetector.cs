@@ -69,6 +69,12 @@ public class ObfuscationDetector
             }
         }
 
+        // 检测元数据破坏
+        DetectMetadataTampering(context, result);
+
+        // 检测反分析技术
+        DetectAntiAnalysis(context, result);
+
         // 计算混淆评分
         result.ObfuscationScore = CalculateObfuscationScore(result);
         result.IsObfuscated = result.ObfuscationScore > 0.3;
@@ -277,6 +283,120 @@ public class ObfuscationDetector
 
     #endregion
 
+    #region Metadata Tampering Detection
+
+    private void DetectMetadataTampering(AssemblyContext context, ObfuscationAnalysisResult result)
+    {
+        var module = context.Assembly!.MainModule;
+
+        // 检测 SuppressIldasmAttribute
+        var hasSuppressIldasm = module.CustomAttributes.Any(a =>
+            a.AttributeType.Name == "SuppressIldasmAttribute");
+
+        if (hasSuppressIldasm)
+        {
+            result.MetadataTamperingPatterns.Add(new ObfuscatedItem
+            {
+                ItemType = ObfuscationType.MetadataTampering,
+                Name = module.Name,
+                Severity = ObfuscationSeverity.High,
+                Evidence = "Contains SuppressIldasmAttribute"
+            });
+        }
+
+        // 检测空名称或非法字符的自定义属性
+        foreach (var attr in module.CustomAttributes)
+        {
+            if (string.IsNullOrEmpty(attr.AttributeType.Name) ||
+                attr.AttributeType.Name.Any(c => c < 32))
+            {
+                result.MetadataTamperingPatterns.Add(new ObfuscatedItem
+                {
+                    ItemType = ObfuscationType.MetadataTampering,
+                    Name = module.Name,
+                    Severity = ObfuscationSeverity.Medium,
+                    Evidence = "Custom attribute with invalid name"
+                });
+                break;
+            }
+        }
+
+        // 检测模块名称异常
+        if (module.Name.Length > 100 || module.Name.Any(c => c < 32))
+        {
+            result.MetadataTamperingPatterns.Add(new ObfuscatedItem
+            {
+                ItemType = ObfuscationType.MetadataTampering,
+                Name = module.Name,
+                Severity = ObfuscationSeverity.Medium,
+                Evidence = "Suspicious module name"
+            });
+        }
+    }
+
+    #endregion
+
+    #region Anti-Analysis Detection
+
+    private void DetectAntiAnalysis(AssemblyContext context, ObfuscationAnalysisResult result)
+    {
+        foreach (var type in context.Assembly!.MainModule.Types)
+        {
+            foreach (var method in type.Methods)
+            {
+                if (!method.HasBody) continue;
+
+                foreach (var instr in method.Body.Instructions)
+                {
+                    // 检测 Debugger.IsAttached
+                    if (instr.OpCode == OpCodes.Call || instr.OpCode == OpCodes.Callvirt)
+                    {
+                        if (instr.Operand is MethodReference mr)
+                        {
+                            var fullName = mr.FullName;
+                            if (fullName.Contains("Debugger::get_IsAttached") ||
+                                fullName.Contains("Debugger::Break") ||
+                                fullName.Contains("Debugger::Launch"))
+                            {
+                                result.AntiAnalysisPatterns.Add(new ObfuscatedItem
+                                {
+                                    ItemType = ObfuscationType.AntiAnalysis,
+                                    Name = $"{type.FullName}.{method.Name}",
+                                    Severity = ObfuscationSeverity.High,
+                                    Evidence = $"Debugger detection: {mr.Name}"
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 检测 P/Invoke 反调试 API
+            foreach (var method in type.Methods)
+            {
+                if (method.IsPInvokeImpl && method.PInvokeInfo != null)
+                {
+                    var entryPoint = method.PInvokeInfo.EntryPoint ?? method.Name;
+                    if (entryPoint.Contains("IsDebuggerPresent") ||
+                        entryPoint.Contains("CheckRemoteDebuggerPresent") ||
+                        entryPoint.Contains("NtQueryInformationProcess") ||
+                        entryPoint.Contains("OutputDebugString"))
+                    {
+                        result.AntiAnalysisPatterns.Add(new ObfuscatedItem
+                        {
+                            ItemType = ObfuscationType.AntiAnalysis,
+                            Name = $"{type.FullName}.{method.Name}",
+                            Severity = ObfuscationSeverity.High,
+                            Evidence = $"Anti-debug P/Invoke: {entryPoint}"
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    #endregion
+
     #region Scoring
 
     private double CalculateObfuscationScore(ObfuscationAnalysisResult result)
@@ -303,6 +423,12 @@ public class ObfuscationDetector
         // 垃圾代码
         score += result.JunkCodePatterns.Count * 0.05;
 
+        // 元数据破坏 (高权重)
+        score += result.MetadataTamperingPatterns.Count * 0.12;
+
+        // 反分析技术 (高权重)
+        score += result.AntiAnalysisPatterns.Count * 0.15;
+
         return Math.Min(score, 1.0);
     }
 
@@ -321,6 +447,8 @@ public class ObfuscationAnalysisResult
     public List<ObfuscatedItem> ControlFlowObfuscations { get; set; } = new();
     public List<ObfuscatedItem> StringObfuscations { get; set; } = new();
     public List<ObfuscatedItem> JunkCodePatterns { get; set; } = new();
+    public List<ObfuscatedItem> MetadataTamperingPatterns { get; set; } = new();
+    public List<ObfuscatedItem> AntiAnalysisPatterns { get; set; } = new();
 }
 
 public class ObfuscatedItem
@@ -338,7 +466,9 @@ public enum ObfuscationType
     FieldName,
     ControlFlowFlattening,
     StringEncryption,
-    JunkCode
+    JunkCode,
+    MetadataTampering,
+    AntiAnalysis
 }
 
 public enum ObfuscationSeverity

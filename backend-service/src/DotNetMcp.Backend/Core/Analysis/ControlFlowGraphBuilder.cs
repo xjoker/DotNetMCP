@@ -50,7 +50,256 @@ public class ControlFlowGraphBuilder
         // 构建边 (控制流转移)
         BuildEdges(cfg, method.Body);
 
+        // 检测异常处理区域
+        DetectExceptionRegions(cfg, method.Body);
+
+        // 检测循环
+        DetectLoops(cfg);
+
         return cfg;
+    }
+
+    /// <summary>
+    /// 检测异常处理区域
+    /// </summary>
+    private void DetectExceptionRegions(ControlFlowGraph cfg, MethodBody body)
+    {
+        var blockByOffset = cfg.BasicBlocks.ToDictionary(b => b.StartOffset);
+        int regionId = 0;
+
+        foreach (var handler in body.ExceptionHandlers)
+        {
+            var region = new ExceptionRegion
+            {
+                Id = $"EH{regionId++}",
+                TryStartOffset = handler.TryStart.Offset,
+                TryEndOffset = handler.TryEnd?.Offset ?? 0,
+                HandlerStartOffset = handler.HandlerStart.Offset,
+                HandlerEndOffset = handler.HandlerEnd?.Offset ?? 0,
+                FilterStartOffset = handler.FilterStart?.Offset,
+                HandlerType = handler.HandlerType switch
+                {
+                    Mono.Cecil.Cil.ExceptionHandlerType.Catch => ExceptionHandlerType.Catch,
+                    Mono.Cecil.Cil.ExceptionHandlerType.Filter => ExceptionHandlerType.Filter,
+                    Mono.Cecil.Cil.ExceptionHandlerType.Finally => ExceptionHandlerType.Finally,
+                    Mono.Cecil.Cil.ExceptionHandlerType.Fault => ExceptionHandlerType.Fault,
+                    _ => ExceptionHandlerType.Catch
+                },
+                CatchType = handler.CatchType?.FullName
+            };
+
+            // 标记 try 块中的基本块
+            foreach (var block in cfg.BasicBlocks)
+            {
+                if (block.StartOffset >= region.TryStartOffset && block.StartOffset < region.TryEndOffset)
+                {
+                    block.IsInTryBlock = true;
+                    region.TryBlocks.Add(block.Id);
+                }
+
+                if (block.StartOffset >= region.HandlerStartOffset && block.StartOffset < region.HandlerEndOffset)
+                {
+                    block.IsExceptionHandler = true;
+                    block.HandlerType = region.HandlerType.ToString().ToLowerInvariant();
+                    region.HandlerBlocks.Add(block.Id);
+                }
+            }
+
+            // 添加异常边（从 try 块最后一个基本块到 handler）
+            if (region.TryBlocks.Count > 0 && region.HandlerBlocks.Count > 0)
+            {
+                var lastTryBlock = region.TryBlocks.Last();
+                var firstHandlerBlock = region.HandlerBlocks.First();
+                
+                cfg.Edges.Add(new CFGEdge
+                {
+                    FromBlock = lastTryBlock,
+                    ToBlock = firstHandlerBlock,
+                    EdgeType = EdgeType.Exception,
+                    Label = region.CatchType ?? region.HandlerType.ToString()
+                });
+            }
+
+            cfg.ExceptionRegions.Add(region);
+        }
+    }
+
+    /// <summary>
+    /// 使用 Tarjan 算法检测循环（基于强连通分量和回边检测）
+    /// </summary>
+    private void DetectLoops(ControlFlowGraph cfg)
+    {
+        if (cfg.BasicBlocks.Count == 0) return;
+
+        var blockById = cfg.BasicBlocks.ToDictionary(b => b.Id);
+        var successors = new Dictionary<string, List<string>>();
+        var predecessors = new Dictionary<string, List<string>>();
+
+        // 构建邻接表
+        foreach (var block in cfg.BasicBlocks)
+        {
+            successors[block.Id] = new List<string>();
+            predecessors[block.Id] = new List<string>();
+        }
+
+        foreach (var edge in cfg.Edges)
+        {
+            if (successors.ContainsKey(edge.FromBlock) && successors.ContainsKey(edge.ToBlock))
+            {
+                successors[edge.FromBlock].Add(edge.ToBlock);
+                predecessors[edge.ToBlock].Add(edge.FromBlock);
+            }
+        }
+
+        // DFS 计算支配关系和回边
+        var visited = new HashSet<string>();
+        var inStack = new HashSet<string>();
+        var dfsOrder = new List<string>();
+        var backEdges = new List<(string from, string to)>();
+
+        void DFS(string blockId)
+        {
+            visited.Add(blockId);
+            inStack.Add(blockId);
+            dfsOrder.Add(blockId);
+
+            foreach (var succ in successors[blockId])
+            {
+                if (!visited.Contains(succ))
+                {
+                    DFS(succ);
+                }
+                else if (inStack.Contains(succ))
+                {
+                    // 发现回边
+                    backEdges.Add((blockId, succ));
+                    
+                    // 更新边类型
+                    var edge = cfg.Edges.FirstOrDefault(e => 
+                        e.FromBlock == blockId && e.ToBlock == succ);
+                    if (edge != null)
+                    {
+                        edge.EdgeType = EdgeType.BackEdge;
+                    }
+                }
+            }
+
+            inStack.Remove(blockId);
+        }
+
+        // 从入口开始 DFS
+        if (cfg.BasicBlocks.Count > 0)
+        {
+            DFS(cfg.BasicBlocks[0].Id);
+        }
+
+        // 为每个回边构建自然循环
+        int loopId = 0;
+        var loops = new List<LoopInfo>();
+
+        foreach (var (from, to) in backEdges)
+        {
+            var loop = new LoopInfo
+            {
+                LoopId = loopId++,
+                HeaderBlockId = to,
+                BackEdgeFrom = new List<string> { from }
+            };
+
+            // 找出循环体（从 header 可达到 back edge 源的所有节点）
+            var loopBody = new HashSet<string> { to };
+            var worklist = new Stack<string>();
+            worklist.Push(from);
+
+            while (worklist.Count > 0)
+            {
+                var node = worklist.Pop();
+                if (!loopBody.Contains(node))
+                {
+                    loopBody.Add(node);
+                    foreach (var pred in predecessors[node])
+                    {
+                        if (!loopBody.Contains(pred))
+                        {
+                            worklist.Push(pred);
+                        }
+                    }
+                }
+            }
+
+            loop.BodyBlocks = loopBody.ToList();
+
+            // 标记循环头
+            if (blockById.TryGetValue(to, out var headerBlock))
+            {
+                headerBlock.IsLoopHeader = true;
+                headerBlock.LoopId = loop.LoopId;
+            }
+
+            // 标记循环体块
+            foreach (var bodyBlockId in loopBody)
+            {
+                if (blockById.TryGetValue(bodyBlockId, out var bodyBlock))
+                {
+                    if (bodyBlock.LoopId == null)
+                    {
+                        bodyBlock.LoopId = loop.LoopId;
+                    }
+                }
+            }
+
+            // 找出循环出口（循环体中有边指向循环体外的块）
+            foreach (var bodyBlockId in loopBody)
+            {
+                foreach (var succ in successors[bodyBlockId])
+                {
+                    if (!loopBody.Contains(succ))
+                    {
+                        if (!loop.ExitBlocks.Contains(bodyBlockId))
+                        {
+                            loop.ExitBlocks.Add(bodyBlockId);
+                        }
+                    }
+                }
+            }
+
+            loops.Add(loop);
+        }
+
+        // 计算循环嵌套关系
+        foreach (var innerLoop in loops)
+        {
+            foreach (var outerLoop in loops)
+            {
+                if (innerLoop.LoopId == outerLoop.LoopId) continue;
+                
+                // 如果内层循环的所有块都在外层循环中
+                if (innerLoop.BodyBlocks.All(b => outerLoop.BodyBlocks.Contains(b)) &&
+                    innerLoop.BodyBlocks.Count < outerLoop.BodyBlocks.Count)
+                {
+                    if (innerLoop.ParentLoopId == null || 
+                        loops.First(l => l.LoopId == innerLoop.ParentLoopId).BodyBlocks.Count > outerLoop.BodyBlocks.Count)
+                    {
+                        innerLoop.ParentLoopId = outerLoop.LoopId;
+                    }
+                }
+            }
+        }
+
+        // 计算嵌套层级
+        foreach (var loop in loops)
+        {
+            int level = 0;
+            int? parentId = loop.ParentLoopId;
+            while (parentId != null)
+            {
+                level++;
+                parentId = loops.FirstOrDefault(l => l.LoopId == parentId)?.ParentLoopId;
+            }
+            loop.NestingLevel = level;
+        }
+
+        cfg.DetectedLoops = loops;
     }
 
     private HashSet<int> IdentifyLeaders(MethodBody body)
@@ -357,6 +606,8 @@ public class ControlFlowGraph
     public string? Error { get; set; }
     public List<BasicBlock> BasicBlocks { get; set; } = new();
     public List<CFGEdge> Edges { get; set; } = new();
+    public List<ExceptionRegion> ExceptionRegions { get; set; } = new();
+    public List<LoopInfo> DetectedLoops { get; set; } = new();
 }
 
 public class BasicBlock
@@ -366,6 +617,11 @@ public class BasicBlock
     public int EndOffset { get; set; }
     public List<CFGInstruction> Instructions { get; set; } = new();
     public TerminatorType TerminatorType { get; set; }
+    public bool IsInTryBlock { get; set; }
+    public bool IsExceptionHandler { get; set; }
+    public string? HandlerType { get; set; }  // catch, finally, filter, fault
+    public bool IsLoopHeader { get; set; }
+    public int? LoopId { get; set; }
 }
 
 public class CFGInstruction
@@ -399,7 +655,48 @@ public enum EdgeType
     Unconditional,
     ConditionalTrue,
     ConditionalFalse,
-    Switch
+    Switch,
+    Exception,      // 异常边（try -> handler）
+    BackEdge        // 循环回边
+}
+
+/// <summary>
+/// 异常处理区域
+/// </summary>
+public class ExceptionRegion
+{
+    public string Id { get; set; } = "";
+    public ExceptionHandlerType HandlerType { get; set; }
+    public int TryStartOffset { get; set; }
+    public int TryEndOffset { get; set; }
+    public int HandlerStartOffset { get; set; }
+    public int HandlerEndOffset { get; set; }
+    public int? FilterStartOffset { get; set; }
+    public string? CatchType { get; set; }
+    public List<string> TryBlocks { get; set; } = new();
+    public List<string> HandlerBlocks { get; set; } = new();
+}
+
+/// <summary>
+/// 循环信息
+/// </summary>
+public class LoopInfo
+{
+    public int LoopId { get; set; }
+    public string HeaderBlockId { get; set; } = "";
+    public List<string> BodyBlocks { get; set; } = new();
+    public List<string> ExitBlocks { get; set; } = new();
+    public List<string> BackEdgeFrom { get; set; } = new();
+    public int NestingLevel { get; set; }
+    public int? ParentLoopId { get; set; }
+}
+
+public enum ExceptionHandlerType
+{
+    Catch,
+    Finally,
+    Filter,
+    Fault
 }
 
 #endregion

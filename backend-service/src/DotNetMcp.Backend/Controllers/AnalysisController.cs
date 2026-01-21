@@ -635,6 +635,18 @@ public class AnalysisController : ControllerBase
                     severity = i.Severity.ToString(),
                     evidence = i.Evidence
                 }),
+                metadata_tampering_patterns = result.MetadataTamperingPatterns.Select(i => new
+                {
+                    name = i.Name,
+                    severity = i.Severity.ToString(),
+                    evidence = i.Evidence
+                }),
+                anti_analysis_patterns = result.AntiAnalysisPatterns.Select(i => new
+                {
+                    method = i.Name,
+                    severity = i.Severity.ToString(),
+                    evidence = i.Evidence
+                }),
                 statistics = new
                 {
                     total_obfuscated_types = result.ObfuscatedTypes.Count,
@@ -642,7 +654,9 @@ public class AnalysisController : ControllerBase
                     total_obfuscated_fields = result.ObfuscatedFields.Count,
                     control_flow_count = result.ControlFlowObfuscations.Count,
                     string_encryption_count = result.StringObfuscations.Count,
-                    junk_code_count = result.JunkCodePatterns.Count
+                    junk_code_count = result.JunkCodePatterns.Count,
+                    metadata_tampering_count = result.MetadataTamperingPatterns.Count,
+                    anti_analysis_count = result.AntiAnalysisPatterns.Count
                 }
             }
         });
@@ -860,6 +874,162 @@ public class AnalysisController : ControllerBase
     }
 
     #endregion
+
+    #region 增强分析 API
+
+    /// <summary>
+    /// 增强搜索 - 支持高级语法、正则、字面量搜索
+    /// </summary>
+    [HttpPost("enhanced-search")]
+    public IActionResult EnhancedSearch(
+        [FromBody] EnhancedSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        var context = GetContext(request.InstanceId);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error = "Instance not found or not loaded" });
+        }
+
+        var result = _analysisService.EnhancedSearch(
+            context,
+            request.Query,
+            request.Mode ?? "all",
+            request.NamespaceFilter,
+            request.Limit ?? 100,
+            cancellationToken);
+
+        return Ok(new
+        {
+            success = result.IsSuccess,
+            items = result.Items,
+            totalCount = result.TotalCount,
+            hasMore = result.HasMore,
+            searchDurationMs = result.SearchDuration.TotalMilliseconds,
+            query = result.Query,
+            mode = result.Mode,
+            error = result.ErrorMessage
+        });
+    }
+
+    /// <summary>
+    /// 构建增强调用图 - 包含委托、反射、Lambda 分析
+    /// </summary>
+    [HttpPost("enhanced-callgraph")]
+    public IActionResult BuildEnhancedCallGraph(
+        [FromBody] InstanceRequest request,
+        CancellationToken cancellationToken)
+    {
+        var context = GetContext(request.InstanceId);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error = "Instance not found or not loaded" });
+        }
+
+        var result = _analysisService.BuildEnhancedCallGraph(context, cancellationToken);
+
+        return Ok(new
+        {
+            success = result.IsSuccess,
+            statistics = result.Statistics,
+            reflectionCalls = result.ReflectionCalls?.Select(r => new
+            {
+                r.CallerMethod,
+                r.ReflectionPattern,
+                r.TargetTypeName,
+                r.TargetMemberName,
+                r.IsResolved
+            }),
+            nodeCount = result.NodeCount,
+            edgeCount = result.EdgeCount,
+            error = result.ErrorMessage
+        });
+    }
+
+    /// <summary>
+    /// 检测递归调用
+    /// </summary>
+    [HttpPost("detect-recursion")]
+    public IActionResult DetectRecursion(
+        [FromBody] InstanceRequest request,
+        CancellationToken cancellationToken)
+    {
+        var context = GetContext(request.InstanceId);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error = "Instance not found or not loaded" });
+        }
+
+        var result = _analysisService.DetectRecursion(context, cancellationToken);
+
+        return Ok(new
+        {
+            success = result.IsSuccess,
+            recursions = result.Recursions?.Select(r => new
+            {
+                r.MethodName,
+                type = r.RecursionType.ToString(),
+                r.Depth,
+                r.Cycle
+            }),
+            totalCount = result.TotalCount,
+            error = result.ErrorMessage
+        });
+    }
+
+    /// <summary>
+    /// 获取方法的支配树分析
+    /// </summary>
+    [HttpPost("dominators")]
+    public IActionResult AnalyzeDominators([FromBody] MethodAnalysisRequest request)
+    {
+        var context = GetContext(request.InstanceId);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error = "Instance not found or not loaded" });
+        }
+
+        var result = _analysisService.AnalyzeDominators(context, request.TypeName, request.MethodName);
+
+        return Ok(new
+        {
+            success = result.IsSuccess,
+            methodName = result.MethodName,
+            immediateDominators = result.ImmediateDominators,
+            dominanceFrontier = result.DominanceFrontier,
+            controlDependence = result.ControlDependence,
+            blockCount = result.BlockCount,
+            error = result.ErrorMessage
+        });
+    }
+
+    /// <summary>
+    /// 获取方法的数据流分析
+    /// </summary>
+    [HttpPost("dataflow")]
+    public IActionResult AnalyzeDataFlow([FromBody] MethodAnalysisRequest request)
+    {
+        var context = GetContext(request.InstanceId);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error = "Instance not found or not loaded" });
+        }
+
+        var result = _analysisService.AnalyzeDataFlow(context, request.TypeName, request.MethodName);
+
+        return Ok(new
+        {
+            success = result.IsSuccess,
+            methodName = result.MethodName,
+            liveIn = result.LiveIn,
+            liveOut = result.LiveOut,
+            definitionCount = result.DefinitionCount,
+            blockCount = result.BlockCount,
+            error = result.ErrorMessage
+        });
+    }
+
+    #endregion
 }
 
 #region Request Models
@@ -919,6 +1089,30 @@ public class ExportAnalysisReportRequest
     public bool? IncludePatterns { get; set; }
     public bool? IncludeObfuscation { get; set; }
     public string? Mvid { get; set; }
+}
+
+// 增强搜索请求
+public class EnhancedSearchRequest
+{
+    public required string Query { get; set; }
+    public string? Mode { get; set; }  // all, type, member, method, field, property, event, literal, token
+    public string? NamespaceFilter { get; set; }
+    public int? Limit { get; set; }
+    public string? InstanceId { get; set; }
+}
+
+// 实例请求
+public class InstanceRequest
+{
+    public string? InstanceId { get; set; }
+}
+
+// 方法分析请求
+public class MethodAnalysisRequest
+{
+    public required string TypeName { get; set; }
+    public required string MethodName { get; set; }
+    public string? InstanceId { get; set; }
 }
 
 #endregion

@@ -134,7 +134,7 @@ namespace DotNetMcp.Backend.Controllers
                 // Read file content
                 using var stream = file.OpenReadStream();
                 var content = new byte[file.Length];
-                await stream.ReadAsync(content);
+                await stream.ReadExactlyAsync(content);
 
                 // Add resource
                 var context = GetContext(tokenData.Mvid);

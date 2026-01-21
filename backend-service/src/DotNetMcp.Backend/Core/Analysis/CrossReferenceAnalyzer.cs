@@ -252,5 +252,7 @@ public enum ReferenceKind
     LocalVariable,
     MethodCall,
     FieldRead,
-    FieldWrite
+    FieldWrite,
+    TypeReference,  // 方法体中的类型引用
+    Override        // 虚方法重写
 }

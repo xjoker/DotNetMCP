@@ -63,10 +63,10 @@ graph TB
 - **Mermaid 可视化**: 可视化方法执行流程
 
 ### 设计模式检测
-自动识别常见设计模式：
-- **创建型**: Singleton, Factory, Abstract Factory, Builder
-- **结构型**: Adapter
-- **行为型**: Observer
+自动识别 **18 种** GoF 设计模式：
+- **创建型**: Singleton, Factory, Abstract Factory, Builder, Prototype
+- **结构型**: Adapter, Bridge, Composite, Decorator, Facade, Flyweight, Proxy
+- **行为型**: Observer, Strategy, Command, State, TemplateMethod, Visitor
 
 特性：
 - 置信度评分 (0.0-1.0)
@@ -74,11 +74,13 @@ graph TB
 - 可配置最小置信度阈值
 
 ### 混淆检测
-识别代码混淆技术：
+识别 **8 种** 代码混淆技术：
 - **标识符混淆**: 检测类型名/方法名/字段名混淆
 - **控制流平坦化**: 识别 switch-based 状态机
 - **字符串加密**: 检测字符串解密调用
 - **垃圾代码**: 识别 NOP 指令和无意义分支
+- **元数据破坏**: 检测 SuppressIldasmAttribute 和非法属性名
+- **反分析技术**: 检测 Debugger.IsAttached 和 P/Invoke 反调试 API
 
 特性：
 - 混淆评分 (0.0-1.0)
