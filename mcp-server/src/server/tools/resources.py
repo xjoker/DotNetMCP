@@ -1,11 +1,10 @@
 """
-Resource Management Tools - MCP tools for managing embedded resources
+Resource Management Tools - Embedded resource operations
 
-Tools for listing, reading, adding, replacing, and removing embedded resources.
+Tools: list_resources, get_resource, set_resource, remove_resource
 """
 
 from fastmcp import FastMCP
-import base64
 
 from ..instance_registry import InstanceRegistry
 from ..config import make_request
@@ -15,17 +14,26 @@ def register_tools(mcp: FastMCP):
     """Register resource management tools with the MCP server."""
 
     @mcp.tool("list_resources")
-    async def list_resources(instance_name: str = None) -> dict:
+    async def list_resources(
+        export_all: bool = False,
+        instance_name: str = None
+    ) -> dict:
         """
-        List all embedded resources in the assembly.
+        列出程序集中的所有嵌入式资源。
         
         Args:
-            instance_name: Optional instance name. Uses default if not specified.
+            export_all: 如果为 True，同时返回所有资源的 base64 内容
+            instance_name: 可选的实例名称
         
         Returns:
-            List of resources with name, type, visibility, and size.
+            资源列表，包含 name, type, visibility, size
+            如果 export_all=True，还包含 content (base64)
         """
         instance = InstanceRegistry.get_instance(instance_name)
+        
+        if export_all:
+            return await make_request(instance, "POST", "/resources/export")
+        
         return await make_request(instance, "GET", "/resources/list")
 
     @mcp.tool("get_resource")
@@ -35,15 +43,15 @@ def register_tools(mcp: FastMCP):
         instance_name: str = None
     ) -> dict:
         """
-        Get resource content by name.
+        获取指定资源的内容。
         
         Args:
-            resource_name: Name of the resource to retrieve
-            return_base64: If true, return content as base64; if false, return hex
-            instance_name: Optional instance name. Uses default if not specified.
+            resource_name: 资源名称
+            return_base64: True 返回 base64 编码，False 返回 hex
+            instance_name: 可选的实例名称
         
         Returns:
-            Resource data including name, size, content preview, and full content.
+            资源数据，包含 name, size, content_preview, content
         """
         instance = InstanceRegistry.get_instance(instance_name)
         return await make_request(
@@ -53,73 +61,53 @@ def register_tools(mcp: FastMCP):
             params={"returnBase64": str(return_base64).lower()}
         )
 
-    @mcp.tool("add_resource")
-    async def add_resource(
+    @mcp.tool("set_resource")
+    async def set_resource(
         name: str,
         content_text: str = None,
         content_base64: str = None,
         is_public: bool = True,
+        upsert: bool = True,
         instance_name: str = None
     ) -> dict:
         """
-        Add a new embedded resource.
+        添加或替换嵌入式资源（upsert 模式）。
         
         Args:
-            name: Resource name (e.g., "config.json", "data.bin")
-            content_text: Text content (for text resources)
-            content_base64: Base64-encoded content (for binary resources)
-            is_public: Whether the resource is public (default: true)
-            instance_name: Optional instance name. Uses default if not specified.
+            name: 资源名称 (如 "config.json", "data.bin")
+            content_text: 文本内容 (文本资源)
+            content_base64: Base64 编码内容 (二进制资源)
+            is_public: 是否公开 (默认 True)
+            upsert: 如果存在则替换 (默认 True)
+            instance_name: 可选的实例名称
         
         Returns:
-            Success status and resource info.
+            成功状态和资源信息
+        
+        Example:
+            # 添加文本资源
+            set_resource("config.json", content_text='{"key": "value"}')
+            
+            # 添加二进制资源
+            set_resource("image.png", content_base64="iVBORw0KGgo...")
         """
         instance = InstanceRegistry.get_instance(instance_name)
-        return await make_request(
-            instance,
-            "POST",
-            "/resources/add",
-            json={
-                "name": name,
-                "contentText": content_text,
-                "contentBase64": content_base64,
-                "isPublic": is_public
-            }
-        )
-
-    @mcp.tool("replace_resource")
-    async def replace_resource(
-        name: str,
-        content_text: str = None,
-        content_base64: str = None,
-        is_public: bool = None,
-        instance_name: str = None
-    ) -> dict:
-        """
-        Replace an existing embedded resource.
         
-        Args:
-            name: Resource name to replace
-            content_text: New text content (for text resources)
-            content_base64: New base64-encoded content (for binary resources)
-            is_public: Optional new visibility (None to keep existing)
-            instance_name: Optional instance name. Uses default if not specified.
+        body = {
+            "name": name,
+            "contentText": content_text,
+            "contentBase64": content_base64,
+            "isPublic": is_public
+        }
         
-        Returns:
-            Success status and updated resource info.
-        """
-        instance = InstanceRegistry.get_instance(instance_name)
-        return await make_request(
-            instance,
-            "PUT",
-            "/resources/replace",
-            json={
-                "name": name,
-                "contentText": content_text,
-                "contentBase64": content_base64,
-                "isPublic": is_public
-            }
-        )
+        if upsert:
+            # Try replace first, fallback to add if resource doesn't exist
+            result = await make_request(instance, "PUT", "/resources/replace", json=body)
+            if not result.get("success") and "not found" in result.get("message", "").lower():
+                return await make_request(instance, "POST", "/resources/add", json=body)
+            return result
+        
+        return await make_request(instance, "POST", "/resources/add", json=body)
 
     @mcp.tool("remove_resource")
     async def remove_resource(
@@ -127,28 +115,14 @@ def register_tools(mcp: FastMCP):
         instance_name: str = None
     ) -> dict:
         """
-        Remove a resource by name.
+        删除指定资源。
         
         Args:
-            resource_name: Name of the resource to remove
-            instance_name: Optional instance name. Uses default if not specified.
+            resource_name: 资源名称
+            instance_name: 可选的实例名称
         
         Returns:
-            Success status.
+            成功状态
         """
         instance = InstanceRegistry.get_instance(instance_name)
         return await make_request(instance, "DELETE", f"/resources/{resource_name}")
-
-    @mcp.tool("export_all_resources")
-    async def export_all_resources(instance_name: str = None) -> dict:
-        """
-        Export all resources to a dictionary.
-        
-        Args:
-            instance_name: Optional instance name. Uses default if not specified.
-        
-        Returns:
-            Dictionary mapping resource names to base64-encoded content.
-        """
-        instance = InstanceRegistry.get_instance(instance_name)
-        return await make_request(instance, "POST", "/resources/export")

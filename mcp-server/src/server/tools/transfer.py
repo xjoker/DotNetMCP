@@ -1,8 +1,7 @@
 """
-Transfer Tools - MCP tools for large file upload/download via temporary tokens
+Transfer Tool - Large file upload/download via temporary tokens
 
-Tools for creating transfer tokens, uploading large files, and downloading large content
-bypassing MCP message size limits.
+Tool: create_transfer_token
 """
 
 from fastmcp import FastMCP
@@ -12,35 +11,38 @@ from ..config import make_request
 
 
 def register_tools(mcp: FastMCP):
-    """Register transfer management tools with the MCP server."""
+    """Register transfer tool with the MCP server."""
 
     @mcp.tool("create_transfer_token")
     async def create_transfer_token(
         operation: str,
-        resource_type: str,
+        resource_type: str = "resource",
         timeout_seconds: int = 120,
         instance_name: str = None
     ) -> dict:
         """
-        Create a temporary transfer token for large file upload/download.
+        创建临时传输令牌，用于大文件上传/下载。
+        
+        令牌会自动过期，无需手动撤销。
         
         Args:
-            operation: Operation type - "upload" or "download"
-            resource_type: Resource type - "resource", "code", or "assembly"
-            timeout_seconds: Token expiration timeout in seconds (default: 120)
-            instance_name: Optional instance name. Uses default if not specified.
+            operation: 操作类型 "upload" | "download"
+            resource_type: 资源类型 "resource" | "code" | "assembly"
+            timeout_seconds: 令牌有效期（秒，默认120）
+            instance_name: 可选的实例名称
         
         Returns:
-            token: Transfer token string (32 chars)
-            expires_at: Expiration time in ISO format
-            expires_in: Expiration timeout in seconds
-            transfer_url: Base URL for transfer endpoints
+            - token: 传输令牌 (32字符)
+            - expires_at: 过期时间 (ISO格式)
+            - expires_in: 有效期（秒）
+            - transfer_url: 传输端点基础URL
         
         Usage:
-            # Create upload token
+            ```python
+            # 创建上传令牌
             result = await create_transfer_token("upload", "resource", 180)
             
-            # Use token with HTTP client
+            # 使用 HTTP 客户端上传
             import httpx
             async with httpx.AsyncClient() as client:
                 with open("large_file.dll", "rb") as f:
@@ -51,17 +53,10 @@ def register_tools(mcp: FastMCP):
                         data={"name": "resource.dll"}
                     )
             
-            # Revoke token after use
-            await revoke_transfer_token(result["token"])
+            # 令牌会自动过期，无需手动撤销
+            ```
         """
         instance = InstanceRegistry.get_instance(instance_name)
-        
-        # Get MVID for the request
-        mvid = None
-        if instance_name:
-            # Try to get MVID from instance if available
-            # For now, let backend handle default
-            pass
         
         return await make_request(
             instance,
@@ -70,50 +65,6 @@ def register_tools(mcp: FastMCP):
             json={
                 "operation": operation,
                 "resourceType": resource_type,
-                "timeoutSeconds": timeout_seconds,
-                "mvid": mvid
+                "timeoutSeconds": timeout_seconds
             }
-        )
-
-    @mcp.tool("revoke_transfer_token")
-    async def revoke_transfer_token(token: str) -> dict:
-        """
-        Revoke a transfer token immediately.
-        
-        Should be called after completing upload/download operation
-        to free up resources.
-        
-        Args:
-            token: Transfer token to revoke
-        
-        Returns:
-            success: Whether the token was successfully revoked
-            message: Result message
-        """
-        instance = InstanceRegistry.get_instance()
-        return await make_request(
-            instance,
-            "POST",
-            "/transfer/token/revoke",
-            json={"token": token}
-        )
-
-    @mcp.tool("get_transfer_token_status")
-    async def get_transfer_token_status(token: str) -> dict:
-        """
-        Get the status of a transfer token.
-        
-        Args:
-            token: Transfer token to check
-        
-        Returns:
-            exists: Whether the token exists
-            used: Whether the token has been used
-            expires_in: Remaining seconds until expiration
-        """
-        instance = InstanceRegistry.get_instance()
-        return await make_request(
-            instance,
-            "GET",
-            f"/transfer/token/status?token={token}"
         )

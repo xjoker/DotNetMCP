@@ -1,7 +1,7 @@
 """
-Transaction Management Tools - MCP tools for session transactions
+Transaction Management Tools - Modification session transactions
 
-Tools for managing modification transactions (begin, commit, rollback).
+Tools: begin_transaction, commit_transaction, rollback_transaction
 """
 
 from fastmcp import FastMCP
@@ -19,29 +19,30 @@ def register_tools(mcp: FastMCP):
         instance_name: str = None
     ) -> dict:
         """
-        Begin a new modification transaction.
+        开始一个修改事务。
         
-        Creates a snapshot of the current assembly state that can be
-        restored by calling rollback_transaction.
+        创建当前程序集状态的快照，可通过 rollback_transaction 恢复。
         
         Args:
-            mvid: Optional assembly MVID
-            instance_name: Optional instance name.
+            mvid: 可选的程序集 MVID
+            instance_name: 可选的实例名称
         
         Returns:
-            Transaction ID and status.
-            
+            - transaction_id: 事务ID
+            - status: 状态
+            - start_time: 开始时间
+        
         Example:
-            # Start a transaction
+            # 开始事务
             result = begin_transaction()
             txn_id = result['data']['transaction_id']
             
-            # Make modifications...
+            # 进行修改...
             
-            # On success:
+            # 成功时提交
             commit_transaction(txn_id)
             
-            # On failure:
+            # 失败时回滚
             rollback_transaction(txn_id)
         """
         instance = InstanceRegistry.get_instance(instance_name)
@@ -54,14 +55,14 @@ def register_tools(mcp: FastMCP):
         instance_name: str = None
     ) -> dict:
         """
-        Commit a transaction, making all modifications permanent.
+        提交事务，使所有修改永久生效。
         
         Args:
-            transaction_id: Transaction ID from begin_transaction
-            instance_name: Optional instance name.
+            transaction_id: begin_transaction 返回的事务ID
+            instance_name: 可选的实例名称
         
         Returns:
-            Success status.
+            成功状态
         """
         instance = InstanceRegistry.get_instance(instance_name)
         payload = {"transaction_id": transaction_id}
@@ -73,46 +74,15 @@ def register_tools(mcp: FastMCP):
         instance_name: str = None
     ) -> dict:
         """
-        Rollback a transaction, restoring assembly to pre-transaction state.
+        回滚事务，恢复到事务开始前的状态。
         
         Args:
-            transaction_id: Transaction ID from begin_transaction
-            instance_name: Optional instance name.
+            transaction_id: begin_transaction 返回的事务ID
+            instance_name: 可选的实例名称
         
         Returns:
-            Success status.
+            成功状态
         """
         instance = InstanceRegistry.get_instance(instance_name)
         payload = {"transaction_id": transaction_id}
         return await make_request(instance, "POST", "/transaction/rollback", json=payload)
-
-    @mcp.tool("get_transaction")
-    async def get_transaction(
-        transaction_id: str,
-        instance_name: str = None
-    ) -> dict:
-        """
-        Get transaction status and details.
-        
-        Args:
-            transaction_id: Transaction ID
-            instance_name: Optional instance name.
-        
-        Returns:
-            Transaction info including status, start time, modification count.
-        """
-        instance = InstanceRegistry.get_instance(instance_name)
-        return await make_request(instance, "GET", f"/transaction/{transaction_id}")
-
-    @mcp.tool("list_transactions")
-    async def list_transactions(
-        instance_name: str = None
-    ) -> dict:
-        """
-        List all transactions.
-        
-        Returns:
-            List of all transactions with their statuses.
-        """
-        instance = InstanceRegistry.get_instance(instance_name)
-        return await make_request(instance, "GET", "/transaction")
