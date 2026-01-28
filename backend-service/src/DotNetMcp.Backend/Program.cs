@@ -8,6 +8,7 @@ builder.Services.AddControllers();
 
 // 注册服务
 builder.Services.AddSingleton<IAssemblyManager, AssemblyManager>();
+builder.Services.AddSingleton<IResourceServiceFactory, ResourceServiceFactory>();
 builder.Services.AddSingleton<ModificationService>();
 builder.Services.AddSingleton<AnalysisService>();
 builder.Services.AddSingleton<TransferTokenStore>();

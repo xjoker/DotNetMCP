@@ -8,11 +8,11 @@ namespace DotNetMcp.Backend.Controllers;
 [Route("resources")]
 public class ResourceController : ControllerBase
 {
-    private readonly IAssemblyManager _assemblyManager;
+    private readonly IResourceServiceFactory _resourceServiceFactory;
 
-    public ResourceController(IAssemblyManager assemblyManager)
+    public ResourceController(IResourceServiceFactory resourceServiceFactory)
     {
-        _assemblyManager = assemblyManager;
+        _resourceServiceFactory = resourceServiceFactory;
     }
 
     /// <summary>
@@ -23,8 +23,8 @@ public class ResourceController : ControllerBase
     {
         try
         {
-            var context = _assemblyManager.Get(mvid);
-            if (context == null)
+            var service = _resourceServiceFactory.GetService(mvid);
+            if (service == null)
             {
                 return BadRequest(new
                 {
@@ -34,7 +34,6 @@ public class ResourceController : ControllerBase
                 });
             }
 
-            var service = new ResourceService(context);
             var resources = service.ListResources();
 
             return Ok(new
@@ -66,8 +65,8 @@ public class ResourceController : ControllerBase
     {
         try
         {
-            var context = _assemblyManager.Get(mvid);
-            if (context == null)
+            var service = _resourceServiceFactory.GetService(mvid);
+            if (service == null)
             {
                 return BadRequest(new
                 {
@@ -77,7 +76,6 @@ public class ResourceController : ControllerBase
                 });
             }
 
-            var service = new ResourceService(context);
             var resource = service.GetResource(resourceName);
 
             return Ok(new
@@ -132,8 +130,8 @@ public class ResourceController : ControllerBase
                 });
             }
 
-            var context = _assemblyManager.Get(request.Mvid);
-            if (context == null)
+            var service = _resourceServiceFactory.GetService(request.Mvid);
+            if (service == null)
             {
                 return BadRequest(new
                 {
@@ -149,7 +147,6 @@ public class ResourceController : ControllerBase
                     ? Encoding.UTF8.GetBytes(request.ContentText)
                     : Array.Empty<byte>();
 
-            var service = new ResourceService(context);
             service.AddResource(request.Name, content, request.IsPublic);
 
             return Ok(new
@@ -191,8 +188,8 @@ public class ResourceController : ControllerBase
     {
         try
         {
-            var context = _assemblyManager.Get(request.Mvid);
-            if (context == null)
+            var service = _resourceServiceFactory.GetService(request.Mvid);
+            if (service == null)
             {
                 return BadRequest(new
                 {
@@ -208,7 +205,6 @@ public class ResourceController : ControllerBase
                     ? Encoding.UTF8.GetBytes(request.ContentText)
                     : Array.Empty<byte>();
 
-            var service = new ResourceService(context);
             service.ReplaceResource(request.Name, content, request.IsPublic);
 
             return Ok(new
@@ -250,8 +246,8 @@ public class ResourceController : ControllerBase
     {
         try
         {
-            var context = _assemblyManager.Get(mvid);
-            if (context == null)
+            var service = _resourceServiceFactory.GetService(mvid);
+            if (service == null)
             {
                 return BadRequest(new
                 {
@@ -261,7 +257,6 @@ public class ResourceController : ControllerBase
                 });
             }
 
-            var service = new ResourceService(context);
             service.RemoveResource(resourceName);
 
             return Ok(new
@@ -302,8 +297,8 @@ public class ResourceController : ControllerBase
     {
         try
         {
-            var context = _assemblyManager.Get(mvid);
-            if (context == null)
+            var service = _resourceServiceFactory.GetService(mvid);
+            if (service == null)
             {
                 return BadRequest(new
                 {
@@ -313,7 +308,6 @@ public class ResourceController : ControllerBase
                 });
             }
 
-            var service = new ResourceService(context);
             var resources = service.ExportAllResources();
 
             var result = resources.ToDictionary(

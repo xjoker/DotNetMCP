@@ -9,12 +9,12 @@ namespace DotNetMcp.Backend.Controllers;
 public class TransferController : ControllerBase
 {
     private readonly TransferTokenStore _tokenStore;
-    private readonly IAssemblyManager _assemblyManager;
+    private readonly IResourceServiceFactory _resourceServiceFactory;
 
-    public TransferController(TransferTokenStore tokenStore, IAssemblyManager assemblyManager)
+    public TransferController(TransferTokenStore tokenStore, IResourceServiceFactory resourceServiceFactory)
     {
         _tokenStore = tokenStore;
-        _assemblyManager = assemblyManager;
+        _resourceServiceFactory = resourceServiceFactory;
     }
 
     /// <summary>
@@ -126,8 +126,8 @@ public class TransferController : ControllerBase
             var content = new byte[file.Length];
             await stream.ReadAsync(content);
 
-            var context = _assemblyManager.Get(tokenData.Mvid);
-            if (context == null)
+            var service = _resourceServiceFactory.GetService(tokenData.Mvid);
+            if (service == null)
             {
                 return BadRequest(new
                 {
@@ -137,7 +137,6 @@ public class TransferController : ControllerBase
                 });
             }
 
-            var service = new ResourceService(context);
             service.AddResource(name, content, true);
 
             _tokenStore.MarkUsed(token);
@@ -197,8 +196,8 @@ public class TransferController : ControllerBase
 
         try
         {
-            var context = _assemblyManager.Get(tokenData.Mvid);
-            if (context == null)
+            var service = _resourceServiceFactory.GetService(tokenData.Mvid);
+            if (service == null)
             {
                 return NotFound(new
                 {
@@ -208,7 +207,6 @@ public class TransferController : ControllerBase
                 });
             }
 
-            var service = new ResourceService(context);
             var resource = service.GetResource(resourceName);
 
             using var output = new MemoryStream();
