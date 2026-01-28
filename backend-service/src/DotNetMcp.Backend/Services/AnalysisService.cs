@@ -551,6 +551,57 @@ public class AnalysisService
 
     #endregion
 
+    #region 混淆检测
+
+    /// <summary>
+    /// 检测混淆
+    /// </summary>
+    public ObfuscationDetectionServiceResult DetectObfuscation(AssemblyContext context)
+    {
+        try
+        {
+            var detector = new ObfuscationDetector(context.Assembly!.MainModule, context.Mvid);
+            var result = detector.Detect();
+
+            return new ObfuscationDetectionServiceResult
+            {
+                IsSuccess = true,
+                IsObfuscated = result.IsObfuscated,
+                ObfuscationScore = result.ObfuscationScore,
+                Confidence = result.Confidence,
+                DetectedObfuscators = result.DetectedObfuscators,
+                Indicators = result.Indicators?.Select(i => new ObfuscationIndicatorInfo
+                {
+                    Category = i.Category,
+                    Severity = i.Severity,
+                    Description = i.Description,
+                    Location = i.Location,
+                    Evidence = i.Evidence
+                }).ToList(),
+                Statistics = result.Statistics != null ? new ObfuscationStatsInfo
+                {
+                    TotalTypes = result.Statistics.TotalTypes,
+                    TotalMethods = result.Statistics.TotalMethods,
+                    TotalFields = result.Statistics.TotalFields,
+                    InvalidTypeNames = result.Statistics.InvalidTypeNames,
+                    InvalidMethodNames = result.Statistics.InvalidMethodNames,
+                    InvalidFieldNames = result.Statistics.InvalidFieldNames,
+                    ShortTypeNames = result.Statistics.ShortTypeNames,
+                    RandomTypeNames = result.Statistics.RandomTypeNames,
+                    FlattenedMethods = result.Statistics.FlattenedMethods,
+                    ProxyMethods = result.Statistics.ProxyMethods
+                } : null
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to detect obfuscation");
+            return new ObfuscationDetectionServiceResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    #endregion
+
     #region Helpers
 
     private static string GetTypeKind(TypeDefinition type)
@@ -762,6 +813,41 @@ public record PatternInfo
     public required string Confidence { get; init; }
     public required List<string> Evidence { get; init; }
     public List<string>? RelatedTypes { get; init; }
+}
+
+public record ObfuscationDetectionServiceResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public bool IsObfuscated { get; init; }
+    public int ObfuscationScore { get; init; }
+    public string? Confidence { get; init; }
+    public List<string>? DetectedObfuscators { get; init; }
+    public List<ObfuscationIndicatorInfo>? Indicators { get; init; }
+    public ObfuscationStatsInfo? Statistics { get; init; }
+}
+
+public record ObfuscationIndicatorInfo
+{
+    public required string Category { get; init; }
+    public required string Severity { get; init; }
+    public required string Description { get; init; }
+    public required string Location { get; init; }
+    public required List<string> Evidence { get; init; }
+}
+
+public record ObfuscationStatsInfo
+{
+    public int TotalTypes { get; init; }
+    public int TotalMethods { get; init; }
+    public int TotalFields { get; init; }
+    public int InvalidTypeNames { get; init; }
+    public int InvalidMethodNames { get; init; }
+    public int InvalidFieldNames { get; init; }
+    public int ShortTypeNames { get; init; }
+    public int RandomTypeNames { get; init; }
+    public int FlattenedMethods { get; init; }
+    public int ProxyMethods { get; init; }
 }
 
 #endregion

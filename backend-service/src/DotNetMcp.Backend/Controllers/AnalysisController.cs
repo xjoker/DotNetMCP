@@ -443,6 +443,43 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 混淆检测
+
+    /// <summary>
+    /// 检测混淆
+    /// </summary>
+    [HttpGet("obfuscation")]
+    public IActionResult DetectObfuscation([FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        var result = _analysisService.DetectObfuscation(context);
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { success = false, error_code = "OBFUSCATION_DETECTION_FAILED", message = result.ErrorMessage });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                is_obfuscated = result.IsObfuscated,
+                obfuscation_score = result.ObfuscationScore,
+                confidence = result.Confidence,
+                detected_obfuscators = result.DetectedObfuscators,
+                indicators = result.Indicators,
+                statistics = result.Statistics
+            }
+        });
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>
