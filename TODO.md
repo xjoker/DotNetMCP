@@ -22,12 +22,12 @@
 - [x] 添加 API 端点 `GET /analysis/cfg/{type}/{method}`
 - [ ] MCP 工具集成 `build_control_flow_graph`
 
-### Phase 2: 依赖图 [P0]
-- [ ] 创建 `Core/Analysis/DependencyGraphBuilder.cs`
-  - [ ] 程序集级依赖分析
-  - [ ] 类型级依赖分析
-  - [ ] 可视化输出 (Mermaid)
-- [ ] 添加 API 端点 `GET /analysis/dependencies`
+### Phase 2: 依赖图 [P0] ✅
+- [x] 创建 `Core/Analysis/DependencyGraphBuilder.cs`
+  - [x] 程序集级依赖分析
+  - [x] 类型级依赖分析
+  - [x] 可视化输出 (Mermaid)
+- [x] 添加 API 端点 `GET /analysis/dependencies`
 - [ ] MCP 工具集成 `build_dependency_graph`
 
 ### Phase 3: 设计模式检测 [P1]
