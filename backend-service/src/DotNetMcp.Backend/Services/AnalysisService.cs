@@ -429,6 +429,63 @@ public class AnalysisService
 
     #endregion
 
+    #region 依赖图
+
+    /// <summary>
+    /// 构建依赖图
+    /// </summary>
+    public DependencyGraphResult BuildDependencyGraph(AssemblyContext context, string level = "assembly", string? rootType = null, int maxDepth = 3)
+    {
+        try
+        {
+            var builder = new DependencyGraphBuilder(context.Assembly!.MainModule, context.Mvid);
+
+            DependencyGraph graph = level.ToLower() switch
+            {
+                "namespace" => builder.BuildNamespaceDependencies(),
+                "type" => builder.BuildTypeDependencies(rootType, maxDepth),
+                _ => builder.BuildAssemblyDependencies()
+            };
+
+            var mermaid = builder.ToMermaid(graph);
+
+            return new DependencyGraphResult
+            {
+                IsSuccess = true,
+                Level = graph.Level.ToString(),
+                RootId = graph.RootId,
+                TotalNodes = graph.TotalNodes,
+                InternalNodes = graph.InternalNodes,
+                ExternalNodes = graph.ExternalNodes,
+                TotalEdges = graph.TotalEdges,
+                Nodes = graph.Nodes.Values.Select(n => new DependencyNodeInfo
+                {
+                    Id = n.Id,
+                    Name = n.Name,
+                    FullName = n.FullName,
+                    Type = n.Type.ToString(),
+                    IsExternal = n.IsExternal,
+                    Version = n.Version
+                }).ToList(),
+                Edges = graph.Edges.Select(e => new DependencyEdgeInfo
+                {
+                    FromId = e.FromId,
+                    ToId = e.ToId,
+                    Kind = e.Kind.ToString(),
+                    Weight = e.Weight
+                }).ToList(),
+                Mermaid = mermaid
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to build dependency graph");
+            return new DependencyGraphResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    #endregion
+
     #region Helpers
 
     private static string GetTypeKind(TypeDefinition type)
@@ -588,6 +645,39 @@ public record CFGEdgeInfo
     public required string ToBlockId { get; init; }
     public required string Type { get; init; }
     public string? Condition { get; init; }
+}
+
+public record DependencyGraphResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public string? Level { get; init; }
+    public string? RootId { get; init; }
+    public int TotalNodes { get; init; }
+    public int InternalNodes { get; init; }
+    public int ExternalNodes { get; init; }
+    public int TotalEdges { get; init; }
+    public List<DependencyNodeInfo>? Nodes { get; init; }
+    public List<DependencyEdgeInfo>? Edges { get; init; }
+    public string? Mermaid { get; init; }
+}
+
+public record DependencyNodeInfo
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string FullName { get; init; }
+    public required string Type { get; init; }
+    public bool IsExternal { get; init; }
+    public string? Version { get; init; }
+}
+
+public record DependencyEdgeInfo
+{
+    public required string FromId { get; init; }
+    public required string ToId { get; init; }
+    public required string Kind { get; init; }
+    public int Weight { get; init; }
 }
 
 #endregion

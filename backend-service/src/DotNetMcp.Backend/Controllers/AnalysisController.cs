@@ -358,6 +358,57 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 依赖图
+
+    /// <summary>
+    /// 构建依赖图
+    /// </summary>
+    [HttpGet("dependencies")]
+    public IActionResult BuildDependencyGraph([FromQuery] string level = "assembly", [FromQuery] string? root_type = null, [FromQuery] int max_depth = 3, [FromQuery] string? mvid = null)
+    {
+        var validLevels = new[] { "assembly", "namespace", "type" };
+        if (!validLevels.Contains(level.ToLowerInvariant()))
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_LEVEL", message = $"Level must be one of: {string.Join(", ", validLevels)}" });
+        }
+
+        if (max_depth < 0 || max_depth > 10)
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_PARAMETER", message = "max_depth must be between 0 and 10" });
+        }
+
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        var result = _analysisService.BuildDependencyGraph(context, level, root_type, max_depth);
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { success = false, error_code = "DEPENDENCY_GRAPH_FAILED", message = result.ErrorMessage });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                level = result.Level,
+                root_id = result.RootId,
+                total_nodes = result.TotalNodes,
+                internal_nodes = result.InternalNodes,
+                external_nodes = result.ExternalNodes,
+                total_edges = result.TotalEdges,
+                nodes = result.Nodes,
+                edges = result.Edges,
+                mermaid = result.Mermaid
+            }
+        });
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>
