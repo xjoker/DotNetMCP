@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using DotNetMcp.Backend.Core.Context;
 using DotNetMcp.Backend.Services;
 
 namespace DotNetMcp.Backend.Controllers;
@@ -13,17 +12,16 @@ public class ModificationController : ControllerBase
 {
     private readonly ILogger<ModificationController> _logger;
     private readonly ModificationService _modificationService;
-
-    // 共享程序集上下文（临时方案，后续改为注入）
-    private static readonly Dictionary<string, AssemblyContext> _contexts = new();
-    private static readonly object _lock = new();
+    private readonly IAssemblyManager _assemblyManager;
 
     public ModificationController(
         ILogger<ModificationController> logger,
-        ModificationService modificationService)
+        ModificationService modificationService,
+        IAssemblyManager assemblyManager)
     {
         _logger = logger;
         _modificationService = modificationService;
+        _assemblyManager = assemblyManager;
     }
 
     /// <summary>
@@ -32,7 +30,7 @@ public class ModificationController : ControllerBase
     [HttpPost("inject/entry")]
     public IActionResult InjectAtEntry([FromBody] InjectRequest request)
     {
-        var context = GetContext(request.Mvid);
+        var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
             return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
@@ -69,7 +67,7 @@ public class ModificationController : ControllerBase
     [HttpPost("replace/body")]
     public IActionResult ReplaceMethodBody([FromBody] InjectRequest request)
     {
-        var context = GetContext(request.Mvid);
+        var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
             return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
@@ -106,7 +104,7 @@ public class ModificationController : ControllerBase
     [HttpPost("type/add")]
     public IActionResult AddType([FromBody] AddTypeRequest request)
     {
-        var context = GetContext(request.Mvid);
+        var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
             return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
@@ -140,7 +138,7 @@ public class ModificationController : ControllerBase
     [HttpPost("method/add")]
     public IActionResult AddMethod([FromBody] AddMethodRequest request)
     {
-        var context = GetContext(request.Mvid);
+        var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
             return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
@@ -179,7 +177,7 @@ public class ModificationController : ControllerBase
     [HttpPost("save")]
     public IActionResult SaveAssembly([FromBody] SaveRequest request)
     {
-        var context = GetContext(request.Mvid);
+        var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
             return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
@@ -198,44 +196,6 @@ public class ModificationController : ControllerBase
         }
 
         return Ok(new { success = true, data = result.Data });
-    }
-
-    /// <summary>
-    /// 注册程序集上下文（供 AssemblyController 共享使用）
-    /// </summary>
-    public static void RegisterContext(string mvid, AssemblyContext context)
-    {
-        lock (_lock)
-        {
-            _contexts[mvid] = context;
-        }
-    }
-
-    /// <summary>
-    /// 注销程序集上下文
-    /// </summary>
-    public static void UnregisterContext(string mvid)
-    {
-        lock (_lock)
-        {
-            _contexts.Remove(mvid);
-        }
-    }
-
-    private AssemblyContext? GetContext(string? mvid)
-    {
-        if (string.IsNullOrEmpty(mvid))
-        {
-            lock (_lock)
-            {
-                return _contexts.Values.FirstOrDefault();
-            }
-        }
-
-        lock (_lock)
-        {
-            return _contexts.TryGetValue(mvid, out var context) ? context : null;
-        }
     }
 }
 

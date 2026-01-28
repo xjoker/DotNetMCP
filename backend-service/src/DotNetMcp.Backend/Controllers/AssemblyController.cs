@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using DotNetMcp.Backend.Core.Context;
+using DotNetMcp.Backend.Services;
 
 namespace DotNetMcp.Backend.Controllers;
 
@@ -11,14 +12,12 @@ namespace DotNetMcp.Backend.Controllers;
 public class AssemblyController : ControllerBase
 {
     private readonly ILogger<AssemblyController> _logger;
-    
-    // TODO: 后续改为注入服务管理多个 AssemblyContext
-    private static readonly Dictionary<string, AssemblyContext> _contexts = new();
-    private static readonly object _lock = new();
+    private readonly IAssemblyManager _assemblyManager;
 
-    public AssemblyController(ILogger<AssemblyController> logger)
+    public AssemblyController(ILogger<AssemblyController> logger, IAssemblyManager assemblyManager)
     {
         _logger = logger;
+        _assemblyManager = assemblyManager;
     }
 
     /// <summary>
@@ -29,8 +28,7 @@ public class AssemblyController : ControllerBase
     {
         try
         {
-            var context = new AssemblyContext(request.Path, request.SearchPaths);
-            var result = await context.LoadAsync();
+            var result = await _assemblyManager.LoadAsync(request.Path, request.SearchPaths);
 
             if (!result.IsSuccess)
             {
@@ -43,19 +41,7 @@ public class AssemblyController : ControllerBase
                 });
             }
 
-            lock (_lock)
-            {
-                var key = context.Mvid.ToString();
-                _contexts[key] = context;
-                
-                // 注册到其他控制器以便共享
-                ModificationController.RegisterContext(key, context);
-                AnalysisController.RegisterContext(key, context);
-                InstanceController.RegisterContext(key, context);
-                ResourceController.RegisterContext(key, context);
-                TransferController.RegisterContext(key, context);
-            }
-
+            var context = result.Context!;
             return Ok(new
             {
                 success = true,
@@ -84,36 +70,25 @@ public class AssemblyController : ControllerBase
     {
         try
         {
-            AssemblyContext? context;
+            var context = _assemblyManager.Get(mvid);
 
-            lock (_lock)
+            if (context == null)
             {
                 if (mvid != null)
                 {
-                    if (!_contexts.TryGetValue(mvid, out context))
+                    return NotFound(new
                     {
-                        return NotFound(new
-                        {
-                            success = false,
-                            error_code = "ASSEMBLY_NOT_FOUND",
-                            message = $"Assembly with MVID {mvid} not found"
-                        });
-                    }
+                        success = false,
+                        error_code = "ASSEMBLY_NOT_FOUND",
+                        message = $"Assembly with MVID {mvid} not found"
+                    });
                 }
-                else
+                return NotFound(new
                 {
-                    // 返回第一个加载的程序集（临时逻辑）
-                    context = _contexts.Values.FirstOrDefault();
-                    if (context == null)
-                    {
-                        return NotFound(new
-                        {
-                            success = false,
-                            error_code = "NO_ASSEMBLY_LOADED",
-                            message = "No assembly loaded"
-                        });
-                    }
-                }
+                    success = false,
+                    error_code = "NO_ASSEMBLY_LOADED",
+                    message = "No assembly loaded"
+                });
             }
 
             var info = context.GetInfo();
@@ -142,7 +117,7 @@ public class AssemblyController : ControllerBase
             success = true,
             service = "DotNet MCP Backend",
             version = "0.1.0",
-            loaded_assemblies = _contexts.Count
+            loaded_assemblies = _assemblyManager.Count
         });
     }
 }

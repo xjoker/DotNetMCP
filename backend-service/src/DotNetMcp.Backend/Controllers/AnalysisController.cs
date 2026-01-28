@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using DotNetMcp.Backend.Core.Context;
 using DotNetMcp.Backend.Services;
 
 namespace DotNetMcp.Backend.Controllers;
@@ -12,44 +11,12 @@ namespace DotNetMcp.Backend.Controllers;
 public class AnalysisController : ControllerBase
 {
     private readonly AnalysisService _analysisService;
-    private static readonly Dictionary<string, AssemblyContext> _contexts = new();
-    private static readonly object _lock = new();
+    private readonly IAssemblyManager _assemblyManager;
 
-    public AnalysisController(AnalysisService analysisService)
+    public AnalysisController(AnalysisService analysisService, IAssemblyManager assemblyManager)
     {
         _analysisService = analysisService;
-    }
-
-    /// <summary>
-    /// 注册程序集上下文（供 AssemblyController 调用）
-    /// </summary>
-    public static void RegisterContext(string key, AssemblyContext context)
-    {
-        lock (_lock)
-        {
-            _contexts[key] = context;
-        }
-    }
-
-    /// <summary>
-    /// 注销程序集上下文
-    /// </summary>
-    public static void UnregisterContext(string key)
-    {
-        lock (_lock)
-        {
-            _contexts.Remove(key);
-        }
-    }
-
-    private AssemblyContext? GetContext(string? mvid = null)
-    {
-        lock (_lock)
-        {
-            if (mvid != null && _contexts.TryGetValue(mvid, out var ctx))
-                return ctx;
-            return _contexts.Values.FirstOrDefault();
-        }
+        _assemblyManager = assemblyManager;
     }
 
     #region 反编译
@@ -60,7 +27,7 @@ public class AnalysisController : ControllerBase
     [HttpGet("type/{typeName}/source")]
     public IActionResult GetTypeSource(string typeName, [FromQuery] string language = "csharp", [FromQuery] string? mvid = null)
     {
-        var context = GetContext(mvid);
+        var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -90,7 +57,7 @@ public class AnalysisController : ControllerBase
     [HttpGet("type/{typeName}/method/{methodName}")]
     public IActionResult GetMethodSource(string typeName, string methodName, [FromQuery] string language = "csharp", [FromQuery] string? mvid = null)
     {
-        var context = GetContext(mvid);
+        var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -125,7 +92,7 @@ public class AnalysisController : ControllerBase
     [HttpGet("type/{typeName}/info")]
     public IActionResult GetTypeInfo(string typeName, [FromQuery] string? mvid = null)
     {
-        var context = GetContext(mvid);
+        var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -170,14 +137,13 @@ public class AnalysisController : ControllerBase
     [HttpGet("search/types")]
     public IActionResult SearchTypes([FromQuery] string keyword, [FromQuery] string? @namespace = null, [FromQuery] int limit = 50, [FromQuery] string? mvid = null)
     {
-        // 验证 limit 参数
         if (limit < 0)
         {
             return BadRequest(new { success = false, error_code = "INVALID_LIMIT", message = "Limit must be >= 0" });
         }
-        limit = Math.Min(limit, 500); // 最大限制
+        limit = Math.Min(limit, 500);
 
-        var context = GetContext(mvid);
+        var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -206,7 +172,7 @@ public class AnalysisController : ControllerBase
     [HttpGet("search/strings")]
     public IActionResult SearchStrings([FromQuery] string query, [FromQuery] string mode = "contains", [FromQuery] int limit = 50, [FromQuery] string? mvid = null)
     {
-        var context = GetContext(mvid);
+        var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -239,7 +205,7 @@ public class AnalysisController : ControllerBase
     [HttpGet("xrefs/type/{typeName}")]
     public IActionResult GetXRefsToType(string typeName, [FromQuery] int limit = 50, [FromQuery] string? mvid = null)
     {
-        var context = GetContext(mvid);
+        var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -275,7 +241,7 @@ public class AnalysisController : ControllerBase
     [HttpGet("xrefs/method/{typeName}/{methodName}")]
     public IActionResult GetXRefsToMethod(string typeName, string methodName, [FromQuery] int limit = 50, [FromQuery] string? mvid = null)
     {
-        var context = GetContext(mvid);
+        var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -315,20 +281,18 @@ public class AnalysisController : ControllerBase
     [HttpGet("callgraph/{typeName}/{methodName}")]
     public IActionResult BuildCallGraph(string typeName, string methodName, [FromQuery] string direction = "callees", [FromQuery] int max_depth = 3, [FromQuery] int max_nodes = 100, [FromQuery] string? mvid = null)
     {
-        // 验证 direction 参数
         var validDirections = new[] { "callees", "callers", "both" };
         if (!validDirections.Contains(direction.ToLowerInvariant()))
         {
             return BadRequest(new { success = false, error_code = "INVALID_DIRECTION", message = $"Direction must be one of: {string.Join(", ", validDirections)}" });
         }
 
-        // 验证数值参数
         if (max_depth < 0 || max_nodes < 0)
         {
             return BadRequest(new { success = false, error_code = "INVALID_PARAMETER", message = "max_depth and max_nodes must be >= 0" });
         }
 
-        var context = GetContext(mvid);
+        var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -363,7 +327,7 @@ public class AnalysisController : ControllerBase
     [HttpPost("batch/sources")]
     public IActionResult BatchGetTypeSources([FromBody] BatchSourcesRequest request)
     {
-        var context = GetContext(request.Mvid);
+        var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -395,7 +359,7 @@ public class AnalysisController : ControllerBase
     [HttpPost("batch/methods")]
     public IActionResult BatchGetMethods([FromBody] BatchMethodsRequest request)
     {
-        var context = GetContext(request.Mvid);
+        var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
@@ -428,7 +392,7 @@ public class AnalysisController : ControllerBase
     [HttpPost("batch/xrefs")]
     public IActionResult BatchGetXRefs([FromBody] BatchXRefsRequest request)
     {
-        var context = GetContext(request.Mvid);
+        var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
             return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
