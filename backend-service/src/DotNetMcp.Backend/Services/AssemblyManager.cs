@@ -24,7 +24,42 @@ public class AssemblyManager : IAssemblyManager, IDisposable
     {
         try
         {
-            var context = new AssemblyContext(path, searchPaths);
+            // 安全验证：规范化路径并检查
+            var normalizedPath = Path.GetFullPath(path);
+
+            // 检查文件是否存在
+            if (!File.Exists(normalizedPath))
+            {
+                return AssemblyLoadResult.Failure(
+                    AssemblyLoadErrorCode.FileNotFound,
+                    $"File not found: {normalizedPath}");
+            }
+
+            // 检查文件扩展名
+            var extension = Path.GetExtension(normalizedPath).ToLowerInvariant();
+            if (extension != ".dll" && extension != ".exe")
+            {
+                return AssemblyLoadResult.Failure(
+                    AssemblyLoadErrorCode.InvalidFormat,
+                    "Only .dll and .exe files are allowed");
+            }
+
+            // 检查是否在允许的目录内（如果配置了白名单）
+            var allowedPaths = Environment.GetEnvironmentVariable("ALLOWED_ASSEMBLY_PATHS");
+            if (!string.IsNullOrEmpty(allowedPaths))
+            {
+                var allowed = allowedPaths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+                var isAllowed = allowed.Any(p => normalizedPath.StartsWith(Path.GetFullPath(p), StringComparison.OrdinalIgnoreCase));
+                if (!isAllowed)
+                {
+                    _logger.LogWarning("Path {Path} is not in allowed directories", normalizedPath);
+                    return AssemblyLoadResult.Failure(
+                        AssemblyLoadErrorCode.AccessDenied,
+                        "Path is not in allowed directories");
+                }
+            }
+
+            var context = new AssemblyContext(normalizedPath, searchPaths);
             var result = await context.LoadAsync(cancellationToken);
 
             if (!result.IsSuccess)

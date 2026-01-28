@@ -122,9 +122,10 @@ public class TransferController : ControllerBase
 
         try
         {
-            using var stream = file.OpenReadStream();
-            var content = new byte[file.Length];
-            await stream.ReadAsync(content);
+            // 使用 MemoryStream 进行完整读取，避免 CA2022 警告
+            using var memoryStream = new MemoryStream();
+            await file.CopyToAsync(memoryStream);
+            var content = memoryStream.ToArray();
 
             var service = _resourceServiceFactory.GetService(tokenData.Mvid);
             if (service == null)
