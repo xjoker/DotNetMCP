@@ -38,12 +38,12 @@
 - [x] 添加 API 端点 `GET /analysis/patterns`
 - [ ] MCP 工具集成 `detect_design_patterns`
 
-### Phase 4: 混淆检测 [P2]
-- [ ] 创建 `Core/Analysis/ObfuscationDetector.cs`
-  - [ ] 非法标识符名称检测
-  - [ ] 随机/超短类型名检测
-  - [ ] 控制流平坦化特征检测
-- [ ] 添加 API 端点 `GET /analysis/obfuscation`
+### Phase 4: 混淆检测 [P2] ✅
+- [x] 创建 `Core/Analysis/ObfuscationDetector.cs`
+  - [x] 非法标识符名称检测
+  - [x] 随机/超短类型名检测
+  - [x] 控制流平坦化特征检测
+- [x] 添加 API 端点 `GET /analysis/obfuscation`
 
 ---
 
