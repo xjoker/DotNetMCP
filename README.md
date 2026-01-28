@@ -63,7 +63,13 @@ cd backend-service
 dotnet run --project src/DotNetMcp.Backend
 ```
 
-服务将在 `http://localhost:5000` 启动。
+服务将在 `http://localhost:8650` 启动。
+
+**环境变量配置：**
+```bash
+# 可选：启用 API Key 认证
+export API_KEYS="your-api-key-1,your-api-key-2"
+```
 
 ### 启动 MCP Server
 
@@ -75,7 +81,7 @@ python dotnetmcp_server.py
 ### 加载程序集
 
 ```bash
-curl -X POST http://localhost:5000/assembly/load \
+curl -X POST http://localhost:8650/assembly/load \
   -H "Content-Type: application/json" \
   -d '{"path": "/path/to/assembly.dll"}'
 ```
@@ -83,7 +89,7 @@ curl -X POST http://localhost:5000/assembly/load \
 ### 注入代码示例
 
 ```bash
-curl -X POST http://localhost:5000/modification/inject/entry \
+curl -X POST http://localhost:8650/modification/inject/entry \
   -H "Content-Type: application/json" \
   -d '{
     "methodFullName": "MyApp.Program::Main",
@@ -97,7 +103,7 @@ curl -X POST http://localhost:5000/modification/inject/entry \
 ### 保存修改后的程序集
 
 ```bash
-curl -X POST http://localhost:5000/modification/save \
+curl -X POST http://localhost:8650/modification/save \
   -H "Content-Type: application/json" \
   -d '{"outputPath": "/tmp/modified.dll"}'
 ```
@@ -140,6 +146,21 @@ curl -X POST http://localhost:5000/modification/save \
 - `add_method` - 添加方法
 - `save_assembly` - 保存程序集
 
+### Instance Tools
+- `list_instances` - 列出所有实例
+- `get_instance_info` - 获取实例信息
+- `set_default_instance` - 设置默认实例
+- `remove_instance` - 移除实例
+- `get_analysis_status` - 获取分析状态
+- `clear_cache` - 清除缓存
+- `health_check_instances` - 健康检查
+
+### Resource & Transfer Tools
+- `list_resources` - 列出嵌入资源
+- `extract_resource` - 提取资源
+- `upload_assembly` - 上传程序集
+- `download_assembly` - 下载程序集
+
 ## 测试
 
 ```bash
@@ -147,7 +168,7 @@ cd backend-service
 dotnet test
 ```
 
-当前测试状态: **113 个测试全部通过** ✅
+当前测试状态: **113 个单元测试 + 36 个端到端测试** ✅
 
 ## 依赖
 
@@ -167,9 +188,9 @@ dotnet test
 | Phase 1: 基础设施 | ✅ | 74 个 |
 | Phase 2: 分析能力 | ✅ | 19 个 |
 | Phase 3: 修改能力 | ✅ | 20 个 |
-| Phase 4: MCP 集成 | ✅ | - |
+| Phase 4: MCP 集成 | ✅ | 36 个 E2E |
 
-**总测试数**: 113 个 ✅
+**总测试数**: 113 单元测试 + 36 端到端测试 ✅
 
 ## License
 
