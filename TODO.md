@@ -20,7 +20,7 @@
   - [x] Mermaid 格式输出
 - [x] 添加 `AnalysisService.BuildControlFlowGraph()` 方法
 - [x] 添加 API 端点 `GET /analysis/cfg/{type}/{method}`
-- [ ] MCP 工具集成 `build_control_flow_graph`
+- [x] MCP 工具集成 `build_control_flow_graph`
 
 ### Phase 2: 依赖图 [P0] ✅
 - [x] 创建 `Core/Analysis/DependencyGraphBuilder.cs`
@@ -28,7 +28,7 @@
   - [x] 类型级依赖分析
   - [x] 可视化输出 (Mermaid)
 - [x] 添加 API 端点 `GET /analysis/dependencies`
-- [ ] MCP 工具集成 `build_dependency_graph`
+- [x] MCP 工具集成 `build_dependency_graph`
 
 ### Phase 3: 设计模式检测 [P1] ✅
 - [x] 创建 `Core/Analysis/PatternDetector.cs`
@@ -36,7 +36,7 @@
   - [x] 工厂模式检测 (Create/Build/Get 方法)
   - [x] 观察者模式检测 (EventHandler + add/remove)
 - [x] 添加 API 端点 `GET /analysis/patterns`
-- [ ] MCP 工具集成 `detect_design_patterns`
+- [x] MCP 工具集成 `detect_design_patterns`
 
 ### Phase 4: 混淆检测 [P2] ✅
 - [x] 创建 `Core/Analysis/ObfuscationDetector.cs`
@@ -44,6 +44,7 @@
   - [x] 随机/超短类型名检测
   - [x] 控制流平坦化特征检测
 - [x] 添加 API 端点 `GET /analysis/obfuscation`
+- [x] MCP 工具集成 `detect_obfuscation`
 
 ---
 

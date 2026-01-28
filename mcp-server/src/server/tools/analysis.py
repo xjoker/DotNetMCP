@@ -234,3 +234,107 @@ def register_tools(mcp: FastMCP):
         return await make_request(
             instance, "GET", f"/analysis/callgraph/{encoded_type}/{encoded_method}", params=params
         )
+
+    @mcp.tool("build_control_flow_graph")
+    async def build_control_flow_graph(
+        type_name: str,
+        method_name: str,
+        include_il: bool = False,
+        instance_name: str = None
+    ) -> dict:
+        """
+        Build control flow graph (CFG) for a method.
+
+        Analyzes the IL instructions to identify basic blocks and control flow edges.
+        Useful for understanding method structure, loops, and branching logic.
+
+        Args:
+            type_name: Fully qualified type name containing the method
+            method_name: Method name to analyze
+            include_il: Include IL instructions in each block (default False)
+            instance_name: Optional instance name.
+
+        Returns:
+            CFG with basic blocks, edges, entry/exit points, and Mermaid diagram.
+        """
+        instance = InstanceRegistry.get_instance(instance_name)
+        encoded_type = quote(type_name, safe='')
+        encoded_method = quote(method_name, safe='')
+        params = {"include_il": str(include_il).lower()}
+        return await make_request(
+            instance, "GET", f"/analysis/cfg/{encoded_type}/{encoded_method}", params=params
+        )
+
+    @mcp.tool("build_dependency_graph")
+    async def build_dependency_graph(
+        level: str = "assembly",
+        root_type: str = None,
+        max_depth: int = 3,
+        instance_name: str = None
+    ) -> dict:
+        """
+        Build dependency graph at specified level.
+
+        Analyzes dependencies between assemblies, namespaces, or types.
+        Useful for understanding architecture and identifying coupling.
+
+        Args:
+            level: Analysis level - "assembly" | "namespace" | "type"
+            root_type: For type level, optional root type to start from
+            max_depth: Maximum depth for type-level analysis (default 3)
+            instance_name: Optional instance name.
+
+        Returns:
+            Dependency graph with nodes, edges, statistics, and Mermaid diagram.
+        """
+        instance = InstanceRegistry.get_instance(instance_name)
+        params = {"level": level, "max_depth": max_depth}
+        if root_type:
+            params["root_type"] = root_type
+        return await make_request(instance, "GET", "/analysis/dependencies", params=params)
+
+    @mcp.tool("detect_design_patterns")
+    async def detect_design_patterns(
+        type_name: str = None,
+        instance_name: str = None
+    ) -> dict:
+        """
+        Detect common design patterns in the assembly.
+
+        Identifies patterns like Singleton, Factory, Observer, Builder, Strategy, Decorator.
+        Provides confidence level and evidence for each detection.
+
+        Args:
+            type_name: Optional specific type to analyze. Analyzes all types if not specified.
+            instance_name: Optional instance name.
+
+        Returns:
+            List of detected patterns with type, confidence, and evidence.
+        """
+        instance = InstanceRegistry.get_instance(instance_name)
+        params = {}
+        if type_name:
+            params["type_name"] = type_name
+        return await make_request(instance, "GET", "/analysis/patterns", params=params)
+
+    @mcp.tool("detect_obfuscation")
+    async def detect_obfuscation(instance_name: str = None) -> dict:
+        """
+        Detect if the assembly is obfuscated and identify obfuscation techniques.
+
+        Analyzes multiple indicators:
+        - Known obfuscator markers (Dotfuscator, ConfuserEx, etc.)
+        - Invalid/random identifier names
+        - Control flow flattening
+        - String encryption patterns
+        - Anti-debugging techniques
+        - Proxy method calls
+
+        Args:
+            instance_name: Optional instance name.
+
+        Returns:
+            Obfuscation score (0-100), confidence, detected obfuscators, and detailed indicators.
+        """
+        instance = InstanceRegistry.get_instance(instance_name)
+        return await make_request(instance, "GET", "/analysis/obfuscation")
