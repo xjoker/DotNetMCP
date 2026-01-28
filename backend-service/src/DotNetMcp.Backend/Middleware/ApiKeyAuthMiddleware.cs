@@ -33,14 +33,22 @@ public class ApiKeyAuthMiddleware
             .ToHashSet();
 
         _authEnabled = _validApiKeys.Count > 0;
-        
+
+        // 检查是否为生产环境
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+        var isProduction = environment.Equals("Production", StringComparison.OrdinalIgnoreCase);
+
         if (_authEnabled)
         {
             _logger.LogInformation("API Key authentication enabled with {Count} keys", _validApiKeys.Count);
         }
+        else if (isProduction)
+        {
+            _logger.LogCritical("SECURITY WARNING: API Key authentication disabled in Production environment! Set API_KEYS environment variable.");
+        }
         else
         {
-            _logger.LogWarning("API Key authentication disabled - no API_KEYS configured");
+            _logger.LogWarning("API Key authentication disabled - no API_KEYS configured (Development mode)");
         }
     }
 

@@ -47,7 +47,7 @@ public class TransferController : ControllerBase
         }
         catch (Exception ex)
         {
-            return Ok(new
+            return StatusCode(500, new
             {
                 success = false,
                 error_code = "TOKEN_CREATE_FAILED",
@@ -129,7 +129,7 @@ public class TransferController : ControllerBase
             var context = _assemblyManager.Get(tokenData.Mvid);
             if (context == null)
             {
-                return Ok(new
+                return BadRequest(new
                 {
                     success = false,
                     error_code = "NO_CONTEXT",
@@ -157,7 +157,7 @@ public class TransferController : ControllerBase
         }
         catch (Exception ex)
         {
-            return Ok(new
+            return StatusCode(500, new
             {
                 success = false,
                 error_code = "UPLOAD_FAILED",
