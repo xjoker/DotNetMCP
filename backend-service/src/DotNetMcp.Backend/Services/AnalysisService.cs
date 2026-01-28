@@ -361,6 +361,74 @@ public class AnalysisService
 
     #endregion
 
+    #region 控制流图
+
+    /// <summary>
+    /// 构建控制流图
+    /// </summary>
+    public CFGResult BuildControlFlowGraph(AssemblyContext context, string typeName, string methodName, bool includeIL = false)
+    {
+        try
+        {
+            var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
+            if (type == null)
+            {
+                return new CFGResult { IsSuccess = false, ErrorMessage = $"Type '{typeName}' not found" };
+            }
+
+            var method = type.Methods.FirstOrDefault(m => m.Name == methodName);
+            if (method == null)
+            {
+                return new CFGResult { IsSuccess = false, ErrorMessage = $"Method '{methodName}' not found" };
+            }
+
+            var builder = new ControlFlowGraphBuilder(context.Assembly!.MainModule, context.Mvid);
+            var cfg = builder.Build(method, includeIL);
+            var mermaid = builder.ToMermaid(cfg);
+
+            return new CFGResult
+            {
+                IsSuccess = true,
+                MethodName = cfg.MethodName,
+                BlockCount = cfg.BlockCount,
+                EdgeCount = cfg.EdgeCount,
+                EntryBlockId = cfg.EntryBlockId,
+                ExitBlockIds = cfg.ExitBlockIds,
+                Blocks = cfg.Blocks.Select(b => new CFGBlockInfo
+                {
+                    Id = b.Id,
+                    StartOffset = b.StartOffset,
+                    EndOffset = b.EndOffset,
+                    Type = b.Type.ToString(),
+                    InstructionCount = b.InstructionCount,
+                    Instructions = b.Instructions?.Select(i => new CFGInstructionInfo
+                    {
+                        Offset = i.Offset,
+                        OpCode = i.OpCode,
+                        Operand = i.Operand
+                    }).ToList(),
+                    Predecessors = b.Predecessors,
+                    Successors = b.Successors
+                }).ToList(),
+                Edges = cfg.Edges.Select(e => new CFGEdgeInfo
+                {
+                    FromBlockId = e.FromBlockId,
+                    ToBlockId = e.ToBlockId,
+                    Type = e.Type.ToString(),
+                    Condition = e.Condition
+                }).ToList(),
+                Mermaid = mermaid
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to build CFG: {TypeName}.{MethodName}", typeName, methodName);
+            return new CFGResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    #endregion
+
     #region Helpers
 
     private static string GetTypeKind(TypeDefinition type)
@@ -479,6 +547,47 @@ public record CallGraphLevel
 {
     public int Depth { get; init; }
     public required List<string> Methods { get; init; }
+}
+
+public record CFGResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public string? MethodName { get; init; }
+    public int BlockCount { get; init; }
+    public int EdgeCount { get; init; }
+    public string? EntryBlockId { get; init; }
+    public List<string>? ExitBlockIds { get; init; }
+    public List<CFGBlockInfo>? Blocks { get; init; }
+    public List<CFGEdgeInfo>? Edges { get; init; }
+    public string? Mermaid { get; init; }
+}
+
+public record CFGBlockInfo
+{
+    public required string Id { get; init; }
+    public int StartOffset { get; init; }
+    public int EndOffset { get; init; }
+    public required string Type { get; init; }
+    public int InstructionCount { get; init; }
+    public List<CFGInstructionInfo>? Instructions { get; init; }
+    public required List<string> Predecessors { get; init; }
+    public required List<string> Successors { get; init; }
+}
+
+public record CFGInstructionInfo
+{
+    public int Offset { get; init; }
+    public required string OpCode { get; init; }
+    public string? Operand { get; init; }
+}
+
+public record CFGEdgeInfo
+{
+    public required string FromBlockId { get; init; }
+    public required string ToBlockId { get; init; }
+    public required string Type { get; init; }
+    public string? Condition { get; init; }
 }
 
 #endregion

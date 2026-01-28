@@ -319,6 +319,45 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 控制流图
+
+    /// <summary>
+    /// 构建控制流图
+    /// </summary>
+    [HttpGet("cfg/{typeName}/{methodName}")]
+    public IActionResult BuildControlFlowGraph(string typeName, string methodName, [FromQuery] bool include_il = false, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        var result = _analysisService.BuildControlFlowGraph(context, Uri.UnescapeDataString(typeName), Uri.UnescapeDataString(methodName), include_il);
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { success = false, error_code = "CFG_FAILED", message = result.ErrorMessage });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                method_name = result.MethodName,
+                block_count = result.BlockCount,
+                edge_count = result.EdgeCount,
+                entry_block = result.EntryBlockId,
+                exit_blocks = result.ExitBlockIds,
+                blocks = result.Blocks,
+                edges = result.Edges,
+                mermaid = result.Mermaid
+            }
+        });
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>
