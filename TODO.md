@@ -1,25 +1,25 @@
 # DotNetMCP TODO
 
-> 最后更新: 2026-01-19 22:44 (Asia/Shanghai)
+> 最后更新: 2026-01-28 (Asia/Shanghai)
 
 ## 🔴 优先修复
 
 | 问题 | 描述 | 状态 |
 |------|------|------|
-| 统一默认实例管理 | 各控制器有独立的默认实例存储 | 待修复 |
+| ~~统一默认实例管理~~ | ~~各控制器有独立的默认实例存储~~ | ✅ 已完成 |
 
 ---
 
 ## 🟡 高级分析工具 (P0-P2)
 
-### Phase 1: 控制流图 (CFG) [P0]
-- [ ] 创建 `Core/Analysis/ControlFlowGraphBuilder.cs`
-  - [ ] 基本块 (Basic Block) 识别
-  - [ ] 分支指令分析 (br, brfalse, brtrue, switch)
-  - [ ] 节点/边结构定义
-  - [ ] Mermaid 格式输出
-- [ ] 添加 `AnalysisService.BuildControlFlowGraph()` 方法
-- [ ] 添加 API 端点 `GET /analysis/cfg/{type}/{method}`
+### Phase 1: 控制流图 (CFG) [P0] ✅
+- [x] 创建 `Core/Analysis/ControlFlowGraphBuilder.cs`
+  - [x] 基本块 (Basic Block) 识别
+  - [x] 分支指令分析 (br, brfalse, brtrue, switch)
+  - [x] 节点/边结构定义
+  - [x] Mermaid 格式输出
+- [x] 添加 `AnalysisService.BuildControlFlowGraph()` 方法
+- [x] 添加 API 端点 `GET /analysis/cfg/{type}/{method}`
 - [ ] MCP 工具集成 `build_control_flow_graph`
 
 ### Phase 2: 依赖图 [P0]
