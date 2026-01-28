@@ -95,6 +95,39 @@ public class InstanceController : ControllerBase
     }
 
     /// <summary>
+    /// 获取默认实例
+    /// </summary>
+    [HttpGet("default")]
+    public IActionResult GetDefault()
+    {
+        var defaultMvid = _assemblyManager.DefaultMvid;
+        if (defaultMvid == null)
+        {
+            return Ok(new
+            {
+                success = true,
+                data = new
+                {
+                    mvid = (string?)null,
+                    message = "No default instance set"
+                }
+            });
+        }
+
+        var context = _assemblyManager.Get(defaultMvid);
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                mvid = defaultMvid,
+                name = context?.Name,
+                version = context?.Version?.ToString()
+            }
+        });
+    }
+
+    /// <summary>
     /// 移除实例
     /// </summary>
     [HttpDelete("{mvid}")]

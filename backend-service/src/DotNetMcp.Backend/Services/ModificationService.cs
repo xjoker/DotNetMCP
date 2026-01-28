@@ -36,7 +36,7 @@ public class ModificationService
             // 构建注入代码
             foreach (var instruction in request.Instructions)
             {
-                AppendInstruction(builder, instruction);
+                AppendInstruction(builder, instruction, context.Assembly!.MainModule);
             }
 
             var instructions = builder.Build();
@@ -82,7 +82,7 @@ public class ModificationService
 
             foreach (var instruction in request.Instructions)
             {
-                AppendInstruction(builder, instruction);
+                AppendInstruction(builder, instruction, context.Assembly!.MainModule);
             }
 
             var instructions = builder.Build();
@@ -369,7 +369,7 @@ public class ModificationService
         };
     }
 
-    private void AppendInstruction(ILBuilder builder, InstructionInfo info)
+    private void AppendInstruction(ILBuilder builder, InstructionInfo info, ModuleDefinition module)
     {
         switch (info.OpCode.ToLowerInvariant())
         {
@@ -410,9 +410,71 @@ public class ModificationService
             case "dup":
                 builder.Dup();
                 break;
+            case "call":
+                if (string.IsNullOrEmpty(info.StringValue))
+                {
+                    throw new ArgumentException("call opcode requires StringValue with method signature");
+                }
+                var methodRef = ResolveMethodReference(module, info.StringValue);
+                builder.Call(methodRef);
+                break;
+            case "callvirt":
+                if (string.IsNullOrEmpty(info.StringValue))
+                {
+                    throw new ArgumentException("callvirt opcode requires StringValue with method signature");
+                }
+                var methodRefVirt = ResolveMethodReference(module, info.StringValue);
+                builder.CallVirt(methodRefVirt);
+                break;
             default:
                 throw new ArgumentException($"Unknown opcode: {info.OpCode}");
         }
+    }
+
+    /// <summary>
+    /// 解析方法引用签名
+    /// 支持格式: "System.Void System.Console::WriteLine(System.String)"
+    /// 或简化格式: "System.Console::WriteLine"
+    /// </summary>
+    private MethodReference ResolveMethodReference(ModuleDefinition module, string signature)
+    {
+        // 尝试解析完整签名: "ReturnType DeclaringType::MethodName(ParamTypes)"
+        // 简化处理: 只解析 "DeclaringType::MethodName" 格式
+
+        var parts = signature.Split(new[] { "::" }, StringSplitOptions.None);
+        if (parts.Length != 2)
+        {
+            throw new ArgumentException($"Invalid method signature format: {signature}. Expected 'Type::Method' or 'ReturnType Type::Method(Params)'");
+        }
+
+        // 提取类型名和方法名
+        var typePart = parts[0].Trim();
+        var methodPart = parts[1].Trim();
+
+        // 如果有返回类型前缀，提取实际类型名
+        var typeNameParts = typePart.Split(' ');
+        var typeName = typeNameParts.Length > 1 ? typeNameParts[^1] : typePart;
+
+        // 提取方法名（去掉参数部分）
+        var methodName = methodPart.Contains('(')
+            ? methodPart.Substring(0, methodPart.IndexOf('('))
+            : methodPart;
+
+        // 查找类型
+        var type = Type.GetType(typeName) ?? Type.GetType($"{typeName}, mscorlib") ?? Type.GetType($"{typeName}, System.Runtime");
+        if (type == null)
+        {
+            throw new ArgumentException($"Cannot resolve type: {typeName}");
+        }
+
+        // 查找方法（简化：只按名称匹配第一个）
+        var method = type.GetMethods().FirstOrDefault(m => m.Name == methodName);
+        if (method == null)
+        {
+            throw new ArgumentException($"Cannot resolve method: {methodName} in type {typeName}");
+        }
+
+        return module.ImportReference(method);
     }
 
     /// <summary>
@@ -421,7 +483,7 @@ public class ModificationService
     private static readonly HashSet<string> ValidOpCodes = new(StringComparer.OrdinalIgnoreCase)
     {
         "nop", "ldarg.0", "ldarg.1", "ldc.i4", "ldc_i4", "ldstr",
-        "add", "sub", "mul", "div", "ret", "pop", "dup"
+        "add", "sub", "mul", "div", "ret", "pop", "dup", "call", "callvirt"
     };
 
     public static bool IsValidOpCode(string opcode) => ValidOpCodes.Contains(opcode);
