@@ -30,12 +30,12 @@
 - [x] 添加 API 端点 `GET /analysis/dependencies`
 - [ ] MCP 工具集成 `build_dependency_graph`
 
-### Phase 3: 设计模式检测 [P1]
-- [ ] 创建 `Core/Analysis/PatternDetector.cs`
-  - [ ] 单例模式检测 (私有构造函数 + 静态实例)
-  - [ ] 工厂模式检测 (Create/Build/Get 方法)
-  - [ ] 观察者模式检测 (EventHandler + add/remove)
-- [ ] 添加 API 端点 `GET /analysis/patterns`
+### Phase 3: 设计模式检测 [P1] ✅
+- [x] 创建 `Core/Analysis/PatternDetector.cs`
+  - [x] 单例模式检测 (私有构造函数 + 静态实例)
+  - [x] 工厂模式检测 (Create/Build/Get 方法)
+  - [x] 观察者模式检测 (EventHandler + add/remove)
+- [x] 添加 API 端点 `GET /analysis/patterns`
 - [ ] MCP 工具集成 `detect_design_patterns`
 
 ### Phase 4: 混淆检测 [P2]
