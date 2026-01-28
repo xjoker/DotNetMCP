@@ -101,13 +101,13 @@ public class PatternDetector
                 TypeName = type.FullName,
                 TypeId = _idGenerator.GenerateForType(type),
                 Confidence = CalculateSingletonConfidence(hasPrivateConstructor, hasStaticInstance, hasStaticProperty, hasInstanceMethod),
-                Evidence = new List<string>
+                Evidence = new List<string?>
                 {
                     hasPrivateConstructor ? "Private constructor" : null,
                     hasStaticInstance ? "Static instance field" : null,
                     hasStaticProperty ? "Static instance property" : null,
                     hasInstanceMethod ? "GetInstance method" : null
-                }.Where(e => e != null).Cast<string>().ToList()
+                }.Where(e => e != null).Select(e => e!).ToList()
             };
         }
 
@@ -240,12 +240,12 @@ public class PatternDetector
                     TypeName = type.FullName,
                     TypeId = _idGenerator.GenerateForType(type),
                     Confidence = buildMethod != null && fluentMethods.Count >= 2 ? "High" : "Medium",
-                    Evidence = new List<string>
+                    Evidence = new List<string?>
                     {
                         "Class name ends with 'Builder'",
                         buildMethod != null ? $"Build method: {buildMethod.Name}()" : null,
                         fluentMethods.Count > 0 ? $"{fluentMethods.Count} fluent methods" : null
-                    }.Where(e => e != null).Cast<string>().ToList(),
+                    }.Where(e => e != null).Select(e => e!).ToList(),
                     RelatedTypes = buildMethod != null ? new List<string> { buildMethod.ReturnType.Name } : null
                 };
             }

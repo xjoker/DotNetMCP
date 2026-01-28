@@ -45,9 +45,12 @@ public class AssemblyController : ControllerBase
             return Ok(new
             {
                 success = true,
-                mvid = context.Mvid.ToString(),
-                name = context.Name,
-                version = context.Version.ToString()
+                data = new
+                {
+                    mvid = context.Mvid.ToString(),
+                    name = context.Name,
+                    version = context.Version.ToString()
+                }
             });
         }
         catch (Exception ex)
@@ -92,7 +95,11 @@ public class AssemblyController : ControllerBase
             }
 
             var info = context.GetInfo();
-            return Ok(info);
+            return Ok(new
+            {
+                success = true,
+                data = info
+            });
         }
         catch (Exception ex)
         {

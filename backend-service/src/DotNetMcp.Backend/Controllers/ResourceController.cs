@@ -26,7 +26,7 @@ public class ResourceController : ControllerBase
             var context = _assemblyManager.Get(mvid);
             if (context == null)
             {
-                return Ok(new
+                return BadRequest(new
                 {
                     success = false,
                     error_code = "NO_CONTEXT",
@@ -49,7 +49,7 @@ public class ResourceController : ControllerBase
         }
         catch (Exception ex)
         {
-            return Ok(new
+            return StatusCode(500, new
             {
                 success = false,
                 error_code = "OPERATION_FAILED",
@@ -69,7 +69,7 @@ public class ResourceController : ControllerBase
             var context = _assemblyManager.Get(mvid);
             if (context == null)
             {
-                return Ok(new
+                return BadRequest(new
                 {
                     success = false,
                     error_code = "NO_CONTEXT",
@@ -96,7 +96,7 @@ public class ResourceController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Ok(new
+            return NotFound(new
             {
                 success = false,
                 error_code = "RESOURCE_NOT_FOUND",
@@ -105,7 +105,7 @@ public class ResourceController : ControllerBase
         }
         catch (Exception ex)
         {
-            return Ok(new
+            return StatusCode(500, new
             {
                 success = false,
                 error_code = "OPERATION_FAILED",
@@ -135,7 +135,7 @@ public class ResourceController : ControllerBase
             var context = _assemblyManager.Get(request.Mvid);
             if (context == null)
             {
-                return Ok(new
+                return BadRequest(new
                 {
                     success = false,
                     error_code = "NO_CONTEXT",
@@ -165,7 +165,7 @@ public class ResourceController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Ok(new
+            return Conflict(new
             {
                 success = false,
                 error_code = "RESOURCE_EXISTS",
@@ -174,7 +174,7 @@ public class ResourceController : ControllerBase
         }
         catch (Exception ex)
         {
-            return Ok(new
+            return StatusCode(500, new
             {
                 success = false,
                 error_code = "OPERATION_FAILED",
@@ -194,7 +194,7 @@ public class ResourceController : ControllerBase
             var context = _assemblyManager.Get(request.Mvid);
             if (context == null)
             {
-                return Ok(new
+                return BadRequest(new
                 {
                     success = false,
                     error_code = "NO_CONTEXT",
@@ -224,7 +224,7 @@ public class ResourceController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Ok(new
+            return NotFound(new
             {
                 success = false,
                 error_code = "RESOURCE_NOT_FOUND",
@@ -233,7 +233,7 @@ public class ResourceController : ControllerBase
         }
         catch (Exception ex)
         {
-            return Ok(new
+            return StatusCode(500, new
             {
                 success = false,
                 error_code = "OPERATION_FAILED",
@@ -253,7 +253,7 @@ public class ResourceController : ControllerBase
             var context = _assemblyManager.Get(mvid);
             if (context == null)
             {
-                return Ok(new
+                return BadRequest(new
                 {
                     success = false,
                     error_code = "NO_CONTEXT",
@@ -276,7 +276,7 @@ public class ResourceController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Ok(new
+            return NotFound(new
             {
                 success = false,
                 error_code = "RESOURCE_NOT_FOUND",
@@ -285,7 +285,7 @@ public class ResourceController : ControllerBase
         }
         catch (Exception ex)
         {
-            return Ok(new
+            return StatusCode(500, new
             {
                 success = false,
                 error_code = "OPERATION_FAILED",
@@ -305,7 +305,7 @@ public class ResourceController : ControllerBase
             var context = _assemblyManager.Get(mvid);
             if (context == null)
             {
-                return Ok(new
+                return BadRequest(new
                 {
                     success = false,
                     error_code = "NO_CONTEXT",
@@ -333,7 +333,7 @@ public class ResourceController : ControllerBase
         }
         catch (Exception ex)
         {
-            return Ok(new
+            return StatusCode(500, new
             {
                 success = false,
                 error_code = "OPERATION_FAILED",
