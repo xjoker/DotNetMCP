@@ -409,6 +409,40 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 设计模式检测
+
+    /// <summary>
+    /// 检测设计模式
+    /// </summary>
+    [HttpGet("patterns")]
+    public IActionResult DetectPatterns([FromQuery] string? type_name = null, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        var result = _analysisService.DetectPatterns(context, type_name != null ? Uri.UnescapeDataString(type_name) : null);
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { success = false, error_code = "PATTERN_DETECTION_FAILED", message = result.ErrorMessage });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                total_count = result.TotalCount,
+                summary = result.Summary,
+                patterns = result.Patterns
+            }
+        });
+    }
+
+    #endregion
+
     #region 批量操作
 
     /// <summary>

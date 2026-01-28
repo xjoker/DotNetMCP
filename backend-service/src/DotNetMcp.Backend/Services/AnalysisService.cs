@@ -486,6 +486,71 @@ public class AnalysisService
 
     #endregion
 
+    #region 设计模式检测
+
+    /// <summary>
+    /// 检测设计模式
+    /// </summary>
+    public PatternDetectionServiceResult DetectPatterns(AssemblyContext context, string? typeName = null)
+    {
+        try
+        {
+            var detector = new PatternDetector(context.Assembly!.MainModule, context.Mvid);
+
+            PatternDetectionResult result;
+            if (typeName != null)
+            {
+                var type = context.Assembly.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
+                if (type == null)
+                {
+                    return new PatternDetectionServiceResult { IsSuccess = false, ErrorMessage = $"Type '{typeName}' not found" };
+                }
+
+                var patterns = new List<DetectedPattern>();
+                var singleton = detector.DetectSingleton(type);
+                if (singleton != null) patterns.Add(singleton);
+                patterns.AddRange(detector.DetectFactory(type));
+                var observer = detector.DetectObserver(type);
+                if (observer != null) patterns.Add(observer);
+
+                result = new PatternDetectionResult
+                {
+                    IsSuccess = true,
+                    Patterns = patterns,
+                    TotalCount = patterns.Count,
+                    Summary = patterns.GroupBy(p => p.PatternType).ToDictionary(g => g.Key, g => g.Count())
+                };
+            }
+            else
+            {
+                result = detector.DetectAll();
+            }
+
+            return new PatternDetectionServiceResult
+            {
+                IsSuccess = true,
+                TotalCount = result.TotalCount,
+                Summary = result.Summary,
+                Patterns = result.Patterns?.Select(p => new PatternInfo
+                {
+                    PatternType = p.PatternType,
+                    TypeName = p.TypeName,
+                    TypeId = p.TypeId,
+                    Confidence = p.Confidence,
+                    Evidence = p.Evidence,
+                    RelatedTypes = p.RelatedTypes
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to detect patterns");
+            return new PatternDetectionServiceResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    #endregion
+
     #region Helpers
 
     private static string GetTypeKind(TypeDefinition type)
@@ -678,6 +743,25 @@ public record DependencyEdgeInfo
     public required string ToId { get; init; }
     public required string Kind { get; init; }
     public int Weight { get; init; }
+}
+
+public record PatternDetectionServiceResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public int TotalCount { get; init; }
+    public Dictionary<string, int>? Summary { get; init; }
+    public List<PatternInfo>? Patterns { get; init; }
+}
+
+public record PatternInfo
+{
+    public required string PatternType { get; init; }
+    public required string TypeName { get; init; }
+    public required string TypeId { get; init; }
+    public required string Confidence { get; init; }
+    public required List<string> Evidence { get; init; }
+    public List<string>? RelatedTypes { get; init; }
 }
 
 #endregion
