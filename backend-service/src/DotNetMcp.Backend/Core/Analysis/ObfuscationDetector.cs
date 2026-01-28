@@ -1,6 +1,7 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using DotNetMcp.Backend.Core.Identity;
+using DotNetMcp.Backend.Core.Utils;
 using System.Text.RegularExpressions;
 
 namespace DotNetMcp.Backend.Core.Analysis;
@@ -113,8 +114,8 @@ public class ObfuscationDetector
                         Category = "ObfuscatorMarker",
                         Severity = "High",
                         Description = marker,
-                        Location = $"Module attribute: {attrName}",
-                        Evidence = new List<string> { $"Attribute: {attrName}" }
+                        Location = $"Module attribute: {StringSanitizer.Sanitize(attrName)}",
+                        Evidence = new List<string> { $"Attribute: {StringSanitizer.Sanitize(attrName)}" }
                     });
                 }
             }
@@ -133,8 +134,8 @@ public class ObfuscationDetector
                         Category = "ObfuscatorMarker",
                         Severity = "High",
                         Description = marker,
-                        Location = $"Assembly attribute: {attrName}",
-                        Evidence = new List<string> { $"Attribute: {attrName}" }
+                        Location = $"Assembly attribute: {StringSanitizer.Sanitize(attrName)}",
+                        Evidence = new List<string> { $"Attribute: {StringSanitizer.Sanitize(attrName)}" }
                     });
                 }
             }
@@ -152,7 +153,7 @@ public class ObfuscationDetector
                         Category = "ObfuscatorMarker",
                         Severity = "Medium",
                         Description = marker,
-                        Location = type.FullName,
+                        Location = StringSanitizer.SanitizeTypeName(type.FullName),
                         Evidence = new List<string> { $"Type name contains: {marker}" }
                     });
                     break;
@@ -187,8 +188,8 @@ public class ObfuscationDetector
                         Category = "InvalidIdentifier",
                         Severity = "Medium",
                         Description = "Invalid type name",
-                        Location = type.FullName,
-                        Evidence = new List<string> { $"Name: {EscapeString(type.Name)}" }
+                        Location = StringSanitizer.SanitizeTypeName(type.FullName),
+                        Evidence = new List<string> { $"Name: {StringSanitizer.Sanitize(type.Name)}" }
                     });
                 }
             }
@@ -322,7 +323,7 @@ public class ObfuscationDetector
                                 Category = "ControlFlowFlattening",
                                 Severity = "High",
                                 Description = "Possible control flow flattening",
-                                Location = $"{type.FullName}.{method.Name}",
+                                Location = $"{StringSanitizer.SanitizeTypeName(type.FullName)}.{StringSanitizer.SanitizeMethodName(method.Name)}",
                                 Evidence = new List<string>
                                 {
                                     $"Switch statements: {switchCount}",
@@ -434,8 +435,8 @@ public class ObfuscationDetector
                                     Category = "AntiDebug",
                                     Severity = "High",
                                     Description = "Anti-debugging technique detected",
-                                    Location = $"{type.FullName}.{method.Name}",
-                                    Evidence = new List<string> { $"Call to: {fullName}" }
+                                    Location = $"{StringSanitizer.SanitizeTypeName(type.FullName)}.{StringSanitizer.SanitizeMethodName(method.Name)}",
+                                    Evidence = new List<string> { $"Call to: {StringSanitizer.Sanitize(fullName)}" }
                                 });
                             }
 

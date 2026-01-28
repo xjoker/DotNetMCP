@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using DotNetMcp.Backend.Core.Context;
 using DotNetMcp.Backend.Core.Analysis;
 using DotNetMcp.Backend.Core.Identity;
+using DotNetMcp.Backend.Core.Utils;
 using Mono.Cecil;
 
 namespace DotNetMcp.Backend.Services;
@@ -102,21 +103,21 @@ public class AnalysisService
             return new TypeInfoResult
             {
                 IsSuccess = true,
-                FullName = type.FullName,
-                Namespace = type.Namespace,
-                Name = type.Name,
-                BaseType = type.BaseType?.FullName,
+                FullName = StringSanitizer.SanitizeTypeName(type.FullName),
+                Namespace = StringSanitizer.Sanitize(type.Namespace),
+                Name = StringSanitizer.Sanitize(type.Name),
+                BaseType = StringSanitizer.SanitizeTypeName(type.BaseType?.FullName),
                 IsPublic = type.IsPublic,
                 IsAbstract = type.IsAbstract,
                 IsSealed = type.IsSealed,
                 IsInterface = type.IsInterface,
                 IsEnum = type.IsEnum,
                 IsValueType = type.IsValueType,
-                Interfaces = type.Interfaces.Select(i => i.InterfaceType.FullName).ToList(),
+                Interfaces = type.Interfaces.Select(i => StringSanitizer.SanitizeTypeName(i.InterfaceType.FullName)).ToList(),
                 Methods = type.Methods.Select(m => new MethodSummary
                 {
-                    Name = m.Name,
-                    ReturnType = m.ReturnType.Name,
+                    Name = StringSanitizer.SanitizeMethodName(m.Name),
+                    ReturnType = StringSanitizer.Sanitize(m.ReturnType.Name),
                     ParameterCount = m.Parameters.Count,
                     IsPublic = m.IsPublic,
                     IsStatic = m.IsStatic,
@@ -124,15 +125,15 @@ public class AnalysisService
                 }).ToList(),
                 Fields = type.Fields.Select(f => new FieldSummary
                 {
-                    Name = f.Name,
-                    FieldType = f.FieldType.Name,
+                    Name = StringSanitizer.SanitizeFieldName(f.Name),
+                    FieldType = StringSanitizer.Sanitize(f.FieldType.Name),
                     IsPublic = f.IsPublic,
                     IsStatic = f.IsStatic
                 }).ToList(),
                 Properties = type.Properties.Select(p => new PropertySummary
                 {
-                    Name = p.Name,
-                    PropertyType = p.PropertyType.Name,
+                    Name = StringSanitizer.Sanitize(p.Name),
+                    PropertyType = StringSanitizer.Sanitize(p.PropertyType.Name),
                     HasGetter = p.GetMethod != null,
                     HasSetter = p.SetMethod != null
                 }).ToList()
@@ -162,9 +163,9 @@ public class AnalysisService
                 .Take(limit)
                 .Select(t => new TypeSummary
                 {
-                    FullName = t.FullName,
-                    Namespace = t.Namespace,
-                    Name = t.Name,
+                    FullName = StringSanitizer.SanitizeTypeName(t.FullName),
+                    Namespace = StringSanitizer.Sanitize(t.Namespace),
+                    Name = StringSanitizer.Sanitize(t.Name),
                     Kind = GetTypeKind(t),
                     MethodCount = t.Methods.Count,
                     FieldCount = t.Fields.Count
@@ -215,9 +216,9 @@ public class AnalysisService
                             {
                                 results.Add(new StringMatch
                                 {
-                                    Value = str,
-                                    TypeName = type.FullName,
-                                    MethodName = method.Name,
+                                    Value = StringSanitizer.Sanitize(str, 500),
+                                    TypeName = StringSanitizer.SanitizeTypeName(type.FullName),
+                                    MethodName = StringSanitizer.SanitizeMethodName(method.Name),
                                     ILOffset = instruction.Offset
                                 });
 
