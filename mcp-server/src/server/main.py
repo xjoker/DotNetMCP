@@ -15,7 +15,7 @@ from fastmcp import FastMCP
 from .config_loader import load_config
 from .config import Config
 from .instance_registry import InstanceRegistry
-from .tools import analysis, modification, instance, batch, resources, transfer
+from .tools import register_all_tools
 from .resources import register_resources
 from .prompts import register_prompts
 
@@ -51,19 +51,15 @@ def create_app() -> FastMCP:
     # 创建 MCP 应用
     mcp = FastMCP(name="DotNet MCP Server")
     
-    # 注册工具
-    analysis.register_tools(mcp)
-    modification.register_tools(mcp)
-    instance.register_tools(mcp)
-    batch.register_tools(mcp)
-    resources.register_tools(mcp)
-    transfer.register_tools(mcp)
+    # 注册所有工具 (26 个整合后的工具)
+    register_all_tools(mcp)
     
     # 注册资源和提示词
     register_resources(mcp)
     register_prompts(mcp)
     
     logger.info(f"MCP Server configured with backend at {backend_host}:{backend_port}")
+    logger.info("Registered 26 consolidated tools")
     
     return mcp
 

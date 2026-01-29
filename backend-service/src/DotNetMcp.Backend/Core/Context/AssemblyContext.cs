@@ -129,6 +129,21 @@ public class AssemblyContext : IDisposable
     }
 
     /// <summary>
+    /// 从新的程序集定义重新加载（用于事务回滚）
+    /// </summary>
+    public void Reload(AssemblyDefinition newAssembly)
+    {
+        if (newAssembly == null)
+            throw new ArgumentNullException(nameof(newAssembly));
+
+        // 释放旧的程序集
+        _assembly?.Dispose();
+        
+        // 替换为新的程序集
+        _assembly = newAssembly;
+    }
+
+    /// <summary>
     /// 获取程序集信息摘要
     /// </summary>
     public AssemblyInfo GetInfo()

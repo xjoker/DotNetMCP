@@ -1,8 +1,7 @@
 """
-Instance Management Tools - MCP tools for managing backend instances
+Instance Management Tools - Streamlined instance management
 
-Tools for listing, adding, removing instances and checking status.
-Updated to match the C# REST API endpoints.
+Tools: list_instances, set_default_instance, remove_instance, clear_cache
 """
 
 from fastmcp import FastMCP
@@ -15,18 +14,46 @@ def register_tools(mcp: FastMCP):
     """Register instance management tools with the MCP server."""
 
     @mcp.tool("list_instances")
-    async def list_instances() -> dict:
+    async def list_instances(include_health: bool = True) -> dict:
         """
-        List all loaded assembly instances.
+        列出所有已加载的程序集实例，包含详细信息和健康状态。
+        
+        Args:
+            include_health: 是否包含健康检查 (默认True)
         
         Returns:
-            List of instances with name, status, and loaded assembly info.
+            实例列表，包含:
+            - name: 实例名称
+            - mvid: 模块版本ID
+            - assembly_name: 程序集名称
+            - version: 版本号
+            - types_count: 类型数量
+            - memory_usage: 内存使用
+            - status: 状态 (connected/disconnected)
+            - is_default: 是否为默认实例
         """
         # Try remote backend first
         try:
             default_instance = InstanceRegistry.get_instance()
             if default_instance:
-                return await make_request(default_instance, "GET", "/instance/list")
+                result = await make_request(default_instance, "GET", "/instance/list")
+                
+                # Add health info if requested
+                if include_health and result.get("success"):
+                    try:
+                        health = await make_request(default_instance, "GET", "/instance/health")
+                        result["health"] = health.get("data", {})
+                    except Exception:
+                        result["health"] = {"error": "Health check failed"}
+                
+                # Add status info
+                try:
+                    status = await make_request(default_instance, "GET", "/instance/status")
+                    result["status"] = status.get("data", {})
+                except Exception:
+                    pass
+                
+                return result
         except Exception:
             pass
         
@@ -41,30 +68,18 @@ def register_tools(mcp: FastMCP):
             }
         }
 
-    @mcp.tool("get_instance_info")
-    async def get_instance_info(mvid: str) -> dict:
-        """
-        Get detailed information about a specific instance.
-        
-        Args:
-            mvid: The MVID of the assembly instance
-        
-        Returns:
-            Instance details including types count, memory usage.
-        """
-        instance = InstanceRegistry.get_instance()
-        return await make_request(instance, "GET", f"/instance/{mvid}")
-
     @mcp.tool("set_default_instance")
     async def set_default_instance(mvid: str) -> dict:
         """
-        Set the default instance for operations.
+        设置默认实例。
+        
+        后续操作会自动使用默认实例，无需每次指定 instance_name。
         
         Args:
-            mvid: Instance MVID to set as default
+            mvid: 实例 MVID
         
         Returns:
-            Success status.
+            成功状态
         """
         instance = InstanceRegistry.get_instance()
         return await make_request(instance, "PUT", f"/instance/{mvid}/default")
@@ -72,60 +87,28 @@ def register_tools(mcp: FastMCP):
     @mcp.tool("remove_instance")
     async def remove_instance(mvid: str) -> dict:
         """
-        Remove/unload an assembly instance.
+        移除/卸载程序集实例。
         
         Args:
-            mvid: Instance MVID to remove
+            mvid: 实例 MVID
         
         Returns:
-            Success status.
+            成功状态
         """
         instance = InstanceRegistry.get_instance()
         return await make_request(instance, "DELETE", f"/instance/{mvid}")
 
-    @mcp.tool("get_analysis_status")
-    async def get_analysis_status(mvid: str = None) -> dict:
-        """
-        Get detailed analysis status and metrics.
-        
-        Use this before resource-intensive operations to check system status.
-        
-        Args:
-            mvid: Optional instance MVID
-        
-        Returns:
-            Status including loaded count, memory usage, instance state.
-        """
-        instance = InstanceRegistry.get_instance()
-        params = {}
-        if mvid:
-            params["mvid"] = mvid
-        return await make_request(instance, "GET", "/instance/status", params=params)
-
     @mcp.tool("clear_cache")
     async def clear_cache(mvid: str = None) -> dict:
         """
-        Clear analysis cache for an instance.
+        清除分析缓存。
         
         Args:
-            mvid: Optional instance MVID
+            mvid: 可选的实例 MVID，不指定则清除所有缓存
         
         Returns:
-            Cache clear result with memory info.
+            缓存清除结果，包含内存信息
         """
         instance = InstanceRegistry.get_instance()
-        params = {}
-        if mvid:
-            params["mvid"] = mvid
+        params = {"mvid": mvid} if mvid else {}
         return await make_request(instance, "POST", "/instance/cache/clear", params=params)
-
-    @mcp.tool("health_check_instances")
-    async def health_check_instances() -> dict:
-        """
-        Perform health check on all instances.
-        
-        Returns:
-            Health status for each instance.
-        """
-        instance = InstanceRegistry.get_instance()
-        return await make_request(instance, "GET", "/instance/health")
