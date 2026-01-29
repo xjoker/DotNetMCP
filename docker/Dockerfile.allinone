@@ -1,0 +1,88 @@
+# DotNetMCP All-in-One Docker Image
+# Backend (.NET) + MCP Server (Python) in single container
+#
+# Build: docker build -t dotnet-mcp-allinone -f docker/Dockerfile.allinone .
+# Run:   docker run -d -p 8650:8650 -p 8651:8651 -v ./assemblies:/data/assemblies dotnet-mcp-allinone
+
+# ============================================================================
+# Stage 1: Build .NET Backend
+# ============================================================================
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
+
+WORKDIR /src
+COPY backend-service/src/DotNetMcp.Backend/DotNetMcp.Backend.csproj ./src/DotNetMcp.Backend/
+RUN dotnet restore ./src/DotNetMcp.Backend/DotNetMcp.Backend.csproj
+
+COPY backend-service/ .
+RUN dotnet publish ./src/DotNetMcp.Backend/DotNetMcp.Backend.csproj -c Release -o /app/backend
+
+# ============================================================================
+# Stage 2: Runtime with .NET + Python
+# ============================================================================
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:10.0-preview
+
+LABEL maintainer="xjoker"
+LABEL description="DotNetMCP All-in-One: .NET Assembly Analysis + MCP Server"
+
+# Environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    ASPNETCORE_URLS=http://+:8650 \
+    ASPNETCORE_ENVIRONMENT=Production \
+    MCP_HOST=0.0.0.0 \
+    MCP_PORT=8651 \
+    BACKEND_HOST=127.0.0.1 \
+    BACKEND_PORT=8650
+
+# ============================================================================
+# Install Python 3.12 + Supervisor + curl
+# ============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    supervisor \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create directories
+RUN mkdir -p /app/backend /app/mcp-server /data/assemblies /app/cache /var/log/supervisor
+
+# ============================================================================
+# Copy .NET Backend
+# ============================================================================
+WORKDIR /app/backend
+COPY --from=build /app/backend .
+
+# ============================================================================
+# Copy and install MCP Server
+# ============================================================================
+WORKDIR /app/mcp-server
+COPY mcp-server/requirements.txt .
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+COPY mcp-server/src ./src
+
+# ============================================================================
+# Copy startup scripts
+# ============================================================================
+COPY docker/scripts/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/scripts/start.sh /start.sh
+RUN chmod +x /start.sh
+
+WORKDIR /app
+
+# Expose ports
+# 8650: Backend API (.NET)
+# 8651: MCP Server (Python)
+EXPOSE 8650 8651
+
+# Health check (MCP Server uses /mcp endpoint, check with port connectivity)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8650/health && curl -sf http://localhost:8651/ -o /dev/null -w '%{http_code}' | grep -q '404\|200' || exit 1
+
+# Start services
+CMD ["/start.sh"]

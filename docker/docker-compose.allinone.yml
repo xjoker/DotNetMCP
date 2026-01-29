@@ -1,0 +1,41 @@
+# DotNetMCP All-in-One Deployment
+# Single container running both Backend and MCP Server
+#
+# Usage: docker compose -f docker/docker-compose.allinone.yml up -d
+
+services:
+  dotnet-mcp:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.allinone
+    image: dotnet-mcp-allinone:latest
+    container_name: dotnet-mcp-allinone
+    ports:
+      - "8650:8650"  # Backend API
+      - "8651:8651"  # MCP Server
+    volumes:
+      - assemblies:/data/assemblies
+      - backend-cache:/app/cache
+    environment:
+      - TZ=UTC
+      - ASPNETCORE_URLS=http://+:8650
+      - ASPNETCORE_ENVIRONMENT=Production
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8651
+      - BACKEND_HOST=127.0.0.1
+      - BACKEND_PORT=8650
+      # Optional: API Key authentication
+      # - API_KEYS=your-api-key-1,your-api-key-2
+    healthcheck:
+      test: ["CMD", "bash", "-c", "curl -f http://localhost:8650/health && curl -sf http://localhost:8651/ -o /dev/null"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  assemblies:
+    driver: local
+  backend-cache:
+    driver: local
