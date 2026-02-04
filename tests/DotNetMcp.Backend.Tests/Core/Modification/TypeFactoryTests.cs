@@ -98,6 +98,6 @@ public class TypeFactoryTests
         // Assert
         Assert.Equal(".ctor", ctor.Name);
         Assert.True(ctor.IsConstructor);
-        Assert.Equal(1, ctor.Parameters.Count);
+        Assert.Single(ctor.Parameters);
     }
 }

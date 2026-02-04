@@ -1,22 +1,22 @@
 # DotNet MCP
 
-[English](README.en.md) | 中文
+English | [中文](README.zh.md)
 
-> **v0.0.1** - 纯 C# 架构，MCP Server 与 Backend 统一
+> **v0.0.1** - Pure C# Architecture, Unified MCP Server and Backend
 
-基于 MCP (Model Context Protocol) 的 .NET 程序集逆向工程和修改工具。
+A .NET assembly reverse engineering and modification tool based on MCP (Model Context Protocol).
 
-## 项目概述
+## Overview
 
-DotNet MCP 是一个为 AI 助手（如 Claude）提供 .NET 程序集分析和修改能力的工具。通过 MCP 协议，AI 可以：
+DotNet MCP is a tool that provides .NET assembly analysis and modification capabilities for AI assistants (like Claude). Through the MCP protocol, AI can:
 
-- 加载和分析 .NET 程序集（DLL/EXE）
-- 反编译类型和方法为 C# 源码或 IL
-- 搜索类型、方法和字符串
-- 分析调用图和控制流图
-- 注入代码和修改程序集
+- Load and analyze .NET assemblies (DLL/EXE)
+- Decompile types and methods to C# source code or IL
+- Search types, methods, and strings
+- Analyze call graphs and control flow graphs
+- Inject code and modify assemblies
 
-## 架构
+## Architecture
 
 ```mermaid
 flowchart TB
@@ -26,7 +26,7 @@ flowchart TB
     Client -->|"MCP Protocol (stdio/HTTP)"| Server
 
     subgraph Server["DotNetMcp.Server"]
-        Tools["MCP Tools (20个)<br/>Assembly | Search | Analysis | Modification | Instance"]
+        Tools["MCP Tools (20)<br/>Assembly | Search | Analysis | Modification | Instance"]
         Registry["Backend Registry<br/>(Local / Remote)"]
         Tools --> Registry
     end
@@ -39,37 +39,37 @@ flowchart TB
     end
 ```
 
-## 快速开始
+## Quick Start
 
-### 环境要求
+### Requirements
 
 - .NET 10.0 SDK
 
-### 编译
+### Build
 
 ```bash
 dotnet build
 ```
 
-### 运行方式
+### Running
 
-#### 1. Stdio 模式（Claude Desktop）
+#### 1. Stdio Mode (Claude Desktop)
 
 ```bash
 dotnet run --project src/DotNetMcp.Server -- --stdio
 ```
 
-#### 2. HTTP 模式
+#### 2. HTTP Mode
 
 ```bash
 dotnet run --project src/DotNetMcp.Server
 ```
 
-服务将在 `http://localhost:5000` 启动。
+The service will start at `http://localhost:5000`.
 
-### Claude Desktop 配置
+### Claude Desktop Configuration
 
-在 `claude_desktop_config.json` 中添加：
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -88,7 +88,7 @@ dotnet run --project src/DotNetMcp.Server
 }
 ```
 
-或使用已编译的可执行文件：
+Or use the compiled executable:
 
 ```json
 {
@@ -101,75 +101,75 @@ dotnet run --project src/DotNetMcp.Server
 }
 ```
 
-## MCP 工具列表
+## MCP Tools
 
-### 程序集管理 (3)
+### Assembly Management (3)
 
-| 工具 | 说明 |
-|------|------|
-| `load_assembly` | 加载 .NET 程序集 |
-| `list_assemblies` | 列出已加载的程序集 |
-| `unload_assembly` | 卸载程序集 |
+| Tool | Description |
+|------|-------------|
+| `load_assembly` | Load a .NET assembly |
+| `list_assemblies` | List loaded assemblies |
+| `unload_assembly` | Unload an assembly |
 
-### 搜索工具 (2)
+### Search Tools (2)
 
-| 工具 | 说明 |
-|------|------|
-| `search_types` | 按关键词搜索类型 |
-| `search_strings` | 搜索字符串字面量 |
+| Tool | Description |
+|------|-------------|
+| `search_types` | Search types by keyword |
+| `search_strings` | Search string literals |
 
-### 分析工具 (6)
+### Analysis Tools (6)
 
-| 工具 | 说明 |
-|------|------|
-| `decompile_type` | 反编译类型为 C#/IL |
-| `decompile_method` | 反编译方法 |
-| `find_type_references` | 查找类型引用 |
-| `find_method_calls` | 查找方法调用 |
-| `get_call_graph` | 构建调用图 |
-| `get_control_flow_graph` | 构建控制流图 |
+| Tool | Description |
+|------|-------------|
+| `decompile_type` | Decompile type to C#/IL |
+| `decompile_method` | Decompile method |
+| `find_type_references` | Find type references |
+| `find_method_calls` | Find method calls |
+| `get_call_graph` | Build call graph |
+| `get_control_flow_graph` | Build control flow graph |
 
-### 修改工具 (4)
+### Modification Tools (4)
 
-| 工具 | 说明 |
-|------|------|
-| `inject_at_entry` | 在方法入口注入代码 |
-| `replace_method_body` | 替换方法体 |
-| `add_type` | 添加新类型 |
-| `save_assembly` | 保存修改后的程序集 |
+| Tool | Description |
+|------|-------------|
+| `inject_at_entry` | Inject code at method entry |
+| `replace_method_body` | Replace method body |
+| `add_type` | Add new type |
+| `save_assembly` | Save modified assembly |
 
-### 实例管理 (5)
+### Instance Management (5)
 
-| 工具 | 说明 |
-|------|------|
-| `list_backends` | 列出所有后端 |
-| `register_remote_backend` | 注册远程后端 |
-| `unregister_backend` | 注销后端 |
-| `set_default_backend` | 设置默认后端 |
-| `check_backend_health` | 检查后端健康状态 |
+| Tool | Description |
+|------|-------------|
+| `list_backends` | List all backends |
+| `register_remote_backend` | Register remote backend |
+| `unregister_backend` | Unregister backend |
+| `set_default_backend` | Set default backend |
+| `check_backend_health` | Check backend health |
 
-## 使用示例
+## Usage Examples
 
-### 加载并分析程序集
+### Load and Analyze Assembly
 
 ```
-用户: 加载 /path/to/MyApp.dll 并告诉我有哪些类型
+User: Load /path/to/MyApp.dll and tell me what types it contains
 
-AI: [调用 load_assembly]
-    [调用 search_types keyword=""]
+AI: [Call load_assembly]
+    [Call search_types keyword=""]
 
-    已加载程序集 MyApp.dll，包含以下类型：
+    Loaded assembly MyApp.dll, containing the following types:
     - MyApp.Program (class, 5 methods)
     - MyApp.Services.UserService (class, 10 methods)
     ...
 ```
 
-### 反编译和分析
+### Decompile and Analyze
 
 ```
-用户: 反编译 UserService 类
+User: Decompile the UserService class
 
-AI: [调用 decompile_type typeName="MyApp.Services.UserService"]
+AI: [Call decompile_type typeName="MyApp.Services.UserService"]
 
     public class UserService
     {
@@ -183,76 +183,76 @@ AI: [调用 decompile_type typeName="MyApp.Services.UserService"]
     }
 ```
 
-### 注入代码
+### Inject Code
 
 ```
-用户: 在 GetUser 方法入口添加日志
+User: Add logging at GetUser method entry
 
-AI: [调用 inject_at_entry
+AI: [Call inject_at_entry
      methodFullName="MyApp.Services.UserService.GetUser"
      instructions=[
        {"opCode": "ldstr", "stringValue": "GetUser called"},
        {"opCode": "call", "stringValue": "System.Console::WriteLine"}
      ]]
 
-    已在 GetUser 方法入口注入日志代码。
+    Logging code injected at GetUser method entry.
 ```
 
-## 测试
+## Testing
 
 ```bash
-# 运行所有测试
+# Run all tests
 dotnet test
 
-# 仅运行 Server 测试
+# Run Server tests only
 dotnet test tests/DotNetMcp.Server.Tests
 
-# 仅运行 Backend 测试
+# Run Backend tests only
 dotnet test tests/DotNetMcp.Backend.Tests
 ```
 
-当前测试状态：
-- Backend 测试：113 个 ✅
-- Server 测试：79 个 ✅
+Current test status:
+- Backend tests: 113 passed
+- Server tests: 79 passed
 
-## 项目结构
+## Project Structure
 
 ```
 DotNetMCP/
 ├── src/
 │   ├── DotNetMcp.Server/          # MCP Server
-│   │   ├── Tools/                 # MCP 工具实现
-│   │   ├── Backend/               # 后端注册与管理
-│   │   └── Configuration/         # 配置
-│   └── DotNetMcp.Backend/         # 核心后端
+│   │   ├── Tools/                 # MCP Tool implementations
+│   │   ├── Backend/               # Backend registration & management
+│   │   └── Configuration/         # Configuration
+│   └── DotNetMcp.Backend/         # Core Backend
 │       ├── Core/
-│       │   ├── Analysis/          # 分析服务
-│       │   ├── Modification/      # 修改服务
-│       │   ├── Context/           # 程序集上下文
-│       │   └── Identity/          # ID 系统
-│       ├── Services/              # 业务服务
+│       │   ├── Analysis/          # Analysis services
+│       │   ├── Modification/      # Modification services
+│       │   ├── Context/           # Assembly context
+│       │   └── Identity/          # ID system
+│       ├── Services/              # Business services
 │       └── Controllers/           # HTTP API
 ├── tests/
-│   ├── DotNetMcp.Server.Tests/    # Server 单元测试
-│   └── DotNetMcp.Backend.Tests/   # Backend 单元测试
+│   ├── DotNetMcp.Server.Tests/    # Server unit tests
+│   └── DotNetMcp.Backend.Tests/   # Backend unit tests
 └── docs/
-    ├── zh/                        # 中文文档
+    ├── zh/                        # Chinese docs
     └── en/                        # English docs
 ```
 
-## 技术栈
+## Tech Stack
 
-- **.NET 10.0** - 运行时
+- **.NET 10.0** - Runtime
 - **ModelContextProtocol** - MCP SDK
-- **Mono.Cecil** - 程序集操作
-- **ICSharpCode.Decompiler** - 反编译
-- **Microsoft.CodeAnalysis** - Roslyn 编译
+- **Mono.Cecil** - Assembly manipulation
+- **ICSharpCode.Decompiler** - Decompilation
+- **Microsoft.CodeAnalysis** - Roslyn compilation
 
-## 详细文档
+## Documentation
 
-- [快速开始指南](docs/zh/getting-started.md)
-- [配置说明](docs/zh/configuration.md)
-- [工具参考](docs/zh/tools-reference.md)
+- [Getting Started](docs/en/getting-started.md)
+- [Configuration](docs/en/configuration.md)
+- [Tools Reference](docs/en/tools-reference.md)
 
 ## License
 

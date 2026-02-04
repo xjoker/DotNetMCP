@@ -73,7 +73,7 @@ public class EndToEndWorkflowTests
     }
 
     [Fact]
-    public void CompileAndAnalyze_ShouldWork()
+    public async Task CompileAndAnalyze_ShouldWork()
     {
         // Arrange
         var referenceProvider = new ReferenceAssemblyProvider();
@@ -99,7 +99,7 @@ public class TestClass
         {
             // 加载并分析编译后的程序集
             var context = new AssemblyContext(tempPath);
-            var loadResult = context.LoadAsync().Result;
+            var loadResult = await context.LoadAsync();
             Assert.True(loadResult.IsSuccess);
 
             // 生成类型 ID
