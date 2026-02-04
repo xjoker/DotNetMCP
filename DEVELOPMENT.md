@@ -70,28 +70,28 @@
 
 > 参考 jadx-ai-mcp：Python MCP Server + Java JADX Plugin
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     AI 客户端 (Claude/Cursor)                │
-└─────────────────────────────────────────────────────────────┘
-                              │ MCP 协议
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Python MCP Server (FastMCP)                    │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │ 工具定义  │  │ Prompts  │  │Resources │  │ 认证中间件│    │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
-│                        端口: 8651                           │
-└─────────────────────────────────────────────────────────────┘
-                              │ HTTP REST API
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              C# 后端服务 (ASP.NET Core Web API)             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │Mono.Cecil│  │反编译引擎 │  │修改引擎  │  │ IL 验证  │    │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
-│                        端口: 8650                           │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Client["AI 客户端 (Claude/Cursor)"]
+    end
+
+    Client -->|"MCP 协议"| MCPServer
+
+    subgraph MCPServer["Python MCP Server (FastMCP) - 端口: 8651"]
+        ToolsDef["工具定义"]
+        Prompts["Prompts"]
+        Resources["Resources"]
+        AuthMiddleware["认证中间件"]
+    end
+
+    MCPServer -->|"HTTP REST API"| Backend
+
+    subgraph Backend["C# 后端服务 (ASP.NET Core Web API) - 端口: 8650"]
+        Cecil["Mono.Cecil"]
+        Decompiler["反编译引擎"]
+        Modifier["修改引擎"]
+        ILValidator["IL 验证"]
+    end
 ```
 
 **技术栈**：
@@ -165,28 +165,25 @@ DotNetMCP/
 
 > 使用 Microsoft 官方 MCP SDK
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     AI 客户端 (Claude/Cursor)                │
-└─────────────────────────────────────────────────────────────┘
-                              │ MCP 协议
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                C# MCP Server + 后端服务一体化                │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ MCP Layer (ModelContextProtocol.AspNetCore)            │ │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐             │ │
-│  │  │ [McpTool]│  │ Prompts  │  │Resources │             │ │
-│  │  └──────────┘  └──────────┘  └──────────┘             │ │
-│  └────────────────────────────────────────────────────────┘ │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Backend Layer                                          │ │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐             │ │
-│  │  │Mono.Cecil│  │ Decompile│  │  Modify  │             │ │
-│  │  └──────────┘  └──────────┘  └──────────┘             │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                        端口: 8651                           │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Client["AI 客户端 (Claude/Cursor)"]
+    end
+
+    Client -->|"MCP 协议"| Server
+
+    subgraph Server["C# MCP Server + 后端服务一体化 - 端口: 8651"]
+        subgraph MCPLayer["MCP Layer (ModelContextProtocol.AspNetCore)"]
+            McpTool["[McpTool]"]
+            Prompts["Prompts"]
+            Resources["Resources"]
+        end
+        subgraph BackendLayer["Backend Layer"]
+            Cecil["Mono.Cecil"]
+            Decompile["Decompile"]
+            Modify["Modify"]
+        end
+    end
 ```
 
 **技术栈**：
@@ -342,50 +339,54 @@ DotNetMCP/
 
 ### 3.2 分层架构图
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     AI 客户端 (Claude/Cursor)                │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    MCP 协议层 (Mcp/)                         │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │ HTTP传输  │  │ stdio传输 │  │ Prompts  │  │Resources │    │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    工具层 (Tools/)                           │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │ Analysis │  │Modification│ │ Instance │  │  Batch   │    │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    核心服务层 (Core/)                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │ Identity │  │  Index   │  │Decompile │  │  Modify  │    │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  基础设施层 (Infrastructure/)                │
-│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐    │
-│  │  Auth  │ │Registry│ │ Paging │ │Validate│ │ Cache  │    │
-│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    外部依赖                                  │
-│  ┌──────────────────────┐  ┌──────────────────────┐        │
-│  │     Mono.Cecil       │  │  ICSharpCode.Decompiler │      │
-│  └──────────────────────┘  └──────────────────────┘        │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Client["AI 客户端 (Claude/Cursor)"]
+    end
+
+    Client --> MCPLayer
+
+    subgraph MCPLayer["MCP 协议层 (Mcp/)"]
+        HTTP["HTTP传输"]
+        Stdio["stdio传输"]
+        Prompts["Prompts"]
+        Resources["Resources"]
+    end
+
+    MCPLayer --> ToolsLayer
+
+    subgraph ToolsLayer["工具层 (Tools/)"]
+        Analysis["Analysis"]
+        ModTools["Modification"]
+        Instance["Instance"]
+        Batch["Batch"]
+    end
+
+    ToolsLayer --> CoreLayer
+
+    subgraph CoreLayer["核心服务层 (Core/)"]
+        Identity["Identity"]
+        Index["Index"]
+        Decompile["Decompile"]
+        Modify["Modify"]
+    end
+
+    CoreLayer --> InfraLayer
+
+    subgraph InfraLayer["基础设施层 (Infrastructure/)"]
+        Auth["Auth"]
+        Registry["Registry"]
+        Paging["Paging"]
+        Validate["Validate"]
+        Cache["Cache"]
+    end
+
+    InfraLayer --> External
+
+    subgraph External["外部依赖"]
+        Cecil["Mono.Cecil"]
+        ICS["ICSharpCode.Decompiler"]
+    end
 ```
 
 ---

@@ -1,0 +1,186 @@
+name: Release
+
+on:
+  push:
+    tags:
+      # 匹配版本 Tag: 0.0.1, 1.0.0, 0.0.2-dev, 1.0.0-beta.1 等
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact_name: DotNetMcp-linux-x64
+          - os: ubuntu-latest
+            rid: linux-arm64
+            artifact_name: DotNetMcp-linux-arm64
+          - os: windows-latest
+            rid: win-x64
+            artifact_name: DotNetMcp-win-x64
+          - os: macos-latest
+            rid: osx-x64
+            artifact_name: DotNetMcp-osx-x64
+          - os: macos-latest
+            rid: osx-arm64
+            artifact_name: DotNetMcp-osx-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Get version from tag
+      id: get_version
+      shell: bash
+      run: |
+        # 从 Tag 获取版本号 (去掉可能的 v 前缀)
+        VERSION=${GITHUB_REF#refs/tags/}
+        VERSION=${VERSION#v}
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+        # 提取主版本号用于 AssemblyVersion (例如 0.0.1-dev -> 0.0.1)
+        ASSEMBLY_VERSION=$(echo $VERSION | sed 's/-.*//')
+        echo "ASSEMBLY_VERSION=$ASSEMBLY_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build and Publish
+      run: |
+        dotnet publish src/DotNetMcp.Server/DotNetMcp.Server.csproj \
+          -c Release \
+          -r ${{ matrix.rid }} \
+          --self-contained true \
+          -p:PublishSingleFile=true \
+          -p:PublishTrimmed=false \
+          -p:Version=${{ steps.get_version.outputs.VERSION }} \
+          -p:AssemblyVersion=${{ steps.get_version.outputs.ASSEMBLY_VERSION }}.0 \
+          -p:FileVersion=${{ steps.get_version.outputs.ASSEMBLY_VERSION }}.0 \
+          -p:InformationalVersion=${{ steps.get_version.outputs.VERSION }} \
+          -o ./publish/${{ matrix.artifact_name }}
+
+    - name: Create archive (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        cd publish
+        tar -czvf ${{ matrix.artifact_name }}.tar.gz ${{ matrix.artifact_name }}
+
+    - name: Create archive (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        cd publish
+        Compress-Archive -Path ${{ matrix.artifact_name }} -DestinationPath ${{ matrix.artifact_name }}.zip
+
+    - name: Upload artifact (Unix)
+      if: runner.os != 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: publish/${{ matrix.artifact_name }}.tar.gz
+
+    - name: Upload artifact (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: publish/${{ matrix.artifact_name }}.zip
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Run tests
+      run: dotnet test --configuration Release --verbosity normal
+
+  release:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Get version from tag
+      id: get_version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        VERSION=${VERSION#v}
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+        # 判断是否为预发布版本
+        if [[ "$VERSION" == *-* ]]; then
+          echo "PRERELEASE=true" >> $GITHUB_OUTPUT
+        else
+          echo "PRERELEASE=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: List artifacts
+      run: ls -la artifacts/
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: v${{ steps.get_version.outputs.VERSION }}
+        tag_name: ${{ github.ref_name }}
+        prerelease: ${{ steps.get_version.outputs.PRERELEASE }}
+        generate_release_notes: true
+        files: |
+          artifacts/**/*.tar.gz
+          artifacts/**/*.zip
+        body: |
+          ## DotNet MCP v${{ steps.get_version.outputs.VERSION }}
+
+          ### 安装说明 / Installation
+
+          1. 下载对应平台的压缩包
+          2. 解压到任意目录
+          3. 配置 Claude Desktop
+
+          **Claude Desktop 配置示例：**
+          ```json
+          {
+            "mcpServers": {
+              "dotnet-mcp": {
+                "command": "/path/to/DotNetMcp.Server",
+                "args": ["--stdio"]
+              }
+            }
+          }
+          ```
+
+          ### 支持平台 / Supported Platforms
+
+          | 平台 | 文件 |
+          |------|------|
+          | Windows x64 | `DotNetMcp-win-x64.zip` |
+          | Linux x64 | `DotNetMcp-linux-x64.tar.gz` |
+          | Linux ARM64 | `DotNetMcp-linux-arm64.tar.gz` |
+          | macOS x64 | `DotNetMcp-osx-x64.tar.gz` |
+          | macOS ARM64 (Apple Silicon) | `DotNetMcp-osx-arm64.tar.gz` |

@@ -1,196 +1,258 @@
-# DotNet MCP Project
+# DotNet MCP
 
-> ✅ **v0.4.0 - 功能完整**
-> 核心功能已完成，包括分析、修改、MCP 集成。生产环境使用前请进行充分测试。
+[English](README.en.md) | 中文
+
+> **v0.0.1** - 纯 C# 架构，MCP Server 与 Backend 统一
+
+基于 MCP (Model Context Protocol) 的 .NET 程序集逆向工程和修改工具。
 
 ## 项目概述
-基于 MCP (Model Context Protocol) 的 .NET 程序集逆向工程和修改工具。
+
+DotNet MCP 是一个为 AI 助手（如 Claude）提供 .NET 程序集分析和修改能力的工具。通过 MCP 协议，AI 可以：
+
+- 加载和分析 .NET 程序集（DLL/EXE）
+- 反编译类型和方法为 C# 源码或 IL
+- 搜索类型、方法和字符串
+- 分析调用图和控制流图
+- 注入代码和修改程序集
 
 ## 架构
 
 ```mermaid
-graph TB
-    subgraph "AI Client"
-        A["Claude / Cursor"]
+flowchart TB
+    subgraph Client["Claude / IDE"]
     end
-    
-    subgraph "MCP Server"
-        B["Python MCP Server<br/>(FastMCP)"]
+
+    Client -->|"MCP Protocol (stdio/HTTP)"| Server
+
+    subgraph Server["DotNetMcp.Server"]
+        Tools["MCP Tools (20个)<br/>Assembly | Search | Analysis | Modification | Instance"]
+        Registry["Backend Registry<br/>(Local / Remote)"]
+        Tools --> Registry
     end
-    
-    subgraph "Backend"
-        C["C# Backend Service<br/>(ASP.NET Core + Mono.Cecil)"]
+
+    Server --> Backend
+
+    subgraph Backend["DotNetMcp.Backend"]
+        Analysis["Core Analysis<br/>Decompiler | CallGraph | CFG | XRef | Search"]
+        Modification["Core Modification<br/>ILBuilder | CodeInjector | TypeFactory | Rewriter"]
     end
-    
-    A -->|"MCP Protocol<br/>(HTTP/stdio)"| B
-    B -->|"REST API<br/>(HTTP)"| C
 ```
-
-
-## 功能模块
-
-### Phase 1: 基础设施 ✅
-- **Cecil 集成**: 程序集加载和上下文管理
-- **ID 系统**: MemberId, LocationId 编解码
-- **分页系统**: Cursor-based 分页和切片
-- **Roslyn 编译**: C# 代码运行时编译
-
-### Phase 2: 分析能力 ✅
-- **索引服务**: TypeIndex, MemberIndex
-- **搜索服务**: 统一搜索接口
-- **反编译**: 基于 ILSpy 的 C# 反编译
-- **交叉引用**: 类型和方法引用查找
-- **调用图**: 方法调用图构建
-
-### Phase 3: 修改能力 ✅
-- **ILBuilder**: IL 指令序列构建器
-- **CodeInjector**: 代码注入器
-- **AssemblyRewriter**: 程序集重写器
-- **TypeFactory**: 类型工厂
-- **DiffComparator**: 差异对比器
-
-### Phase 4: MCP 集成 ✅
-- **Python MCP Server**: FastMCP 框架
-- **工具注册**: 分析和修改工具
-- **REST API 适配**: Python ↔ C# 对接
 
 ## 快速开始
 
-### 启动后端服务
+### 环境要求
+
+- .NET 10.0 SDK
+
+### 编译
 
 ```bash
-cd backend-service
-dotnet run --project src/DotNetMcp.Backend
+dotnet build
 ```
 
-服务将在 `http://localhost:8650` 启动。
+### 运行方式
 
-**环境变量配置：**
-```bash
-# 可选：启用 API Key 认证
-export API_KEYS="your-api-key-1,your-api-key-2"
-```
-
-### 启动 MCP Server
+#### 1. Stdio 模式（Claude Desktop）
 
 ```bash
-cd mcp-server
-python dotnetmcp_server.py
+dotnet run --project src/DotNetMcp.Server -- --stdio
 ```
 
-### 加载程序集
+#### 2. HTTP 模式
 
 ```bash
-curl -X POST http://localhost:8650/assembly/load \
-  -H "Content-Type: application/json" \
-  -d '{"path": "/path/to/assembly.dll"}'
+dotnet run --project src/DotNetMcp.Server
 ```
 
-### 注入代码示例
+服务将在 `http://localhost:5000` 启动。
 
-```bash
-curl -X POST http://localhost:8650/modification/inject/entry \
-  -H "Content-Type: application/json" \
-  -d '{
-    "methodFullName": "MyApp.Program::Main",
-    "instructions": [
-      {"opCode": "ldstr", "stringValue": "Hello from injected code!"},
-      {"opCode": "call", "stringValue": "System.Console::WriteLine"}
-    ]
-  }'
+### Claude Desktop 配置
+
+在 `claude_desktop_config.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "dotnet-mcp": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "/path/to/DotNetMCP/src/DotNetMcp.Server",
+        "--",
+        "--stdio"
+      ]
+    }
+  }
+}
 ```
 
-### 保存修改后的程序集
+或使用已编译的可执行文件：
 
-```bash
-curl -X POST http://localhost:8650/modification/save \
-  -H "Content-Type: application/json" \
-  -d '{"outputPath": "/tmp/modified.dll"}'
+```json
+{
+  "mcpServers": {
+    "dotnet-mcp": {
+      "command": "/path/to/DotNetMcp.Server",
+      "args": ["--stdio"]
+    }
+  }
+}
 ```
 
-## REST API 端点
+## MCP 工具列表
 
-### Assembly Management
-- `POST /assembly/load` - 加载程序集
-- `GET /assembly/info` - 获取程序集信息
-- `GET /health` - 健康检查
+### 程序集管理 (3)
 
-### Modification
-- `POST /modification/inject/entry` - 注入方法入口代码
-- `POST /modification/replace/body` - 替换方法体
-- `POST /modification/type/add` - 添加新类型
-- `POST /modification/method/add` - 添加方法
-- `POST /modification/save` - 保存程序集
+| 工具 | 说明 |
+|------|------|
+| `load_assembly` | 加载 .NET 程序集 |
+| `list_assemblies` | 列出已加载的程序集 |
+| `unload_assembly` | 卸载程序集 |
 
-## MCP 工具
+### 搜索工具 (2)
 
-### Analysis Tools
-- `get_assembly_info` - 获取程序集信息
-- `get_type_source` - 获取类型源码
-- `get_method_by_name` - 获取方法源码
-- `get_type_info` - 获取类型结构信息
-- `search_types_by_keyword` - 搜索类型
-- `search_string_literals` - 搜索字符串字面量
-- `get_xrefs_to_type` - 查找类型引用
-- `get_xrefs_to_method` - 查找方法调用
-- `build_call_graph` - 构建调用图
-- `build_control_flow_graph` - 构建控制流图 (CFG)
-- `build_dependency_graph` - 构建依赖图
-- `detect_design_patterns` - 检测设计模式
-- `detect_obfuscation` - 检测混淆
+| 工具 | 说明 |
+|------|------|
+| `search_types` | 按关键词搜索类型 |
+| `search_strings` | 搜索字符串字面量 |
 
-### Modification Tools
-- `inject_method_entry` - 注入方法入口
-- `replace_method_body` - 替换方法体
-- `add_type` - 添加类型
-- `add_method` - 添加方法
-- `save_assembly` - 保存程序集
+### 分析工具 (6)
 
-### Instance Tools
-- `list_instances` - 列出所有实例
-- `get_instance_info` - 获取实例信息
-- `set_default_instance` - 设置默认实例
-- `remove_instance` - 移除实例
-- `get_analysis_status` - 获取分析状态
-- `clear_cache` - 清除缓存
-- `health_check_instances` - 健康检查
+| 工具 | 说明 |
+|------|------|
+| `decompile_type` | 反编译类型为 C#/IL |
+| `decompile_method` | 反编译方法 |
+| `find_type_references` | 查找类型引用 |
+| `find_method_calls` | 查找方法调用 |
+| `get_call_graph` | 构建调用图 |
+| `get_control_flow_graph` | 构建控制流图 |
 
-### Resource & Transfer Tools
-- `list_resources` - 列出嵌入资源
-- `extract_resource` - 提取资源
-- `upload_assembly` - 上传程序集
-- `download_assembly` - 下载程序集
+### 修改工具 (4)
+
+| 工具 | 说明 |
+|------|------|
+| `inject_at_entry` | 在方法入口注入代码 |
+| `replace_method_body` | 替换方法体 |
+| `add_type` | 添加新类型 |
+| `save_assembly` | 保存修改后的程序集 |
+
+### 实例管理 (5)
+
+| 工具 | 说明 |
+|------|------|
+| `list_backends` | 列出所有后端 |
+| `register_remote_backend` | 注册远程后端 |
+| `unregister_backend` | 注销后端 |
+| `set_default_backend` | 设置默认后端 |
+| `check_backend_health` | 检查后端健康状态 |
+
+## 使用示例
+
+### 加载并分析程序集
+
+```
+用户: 加载 /path/to/MyApp.dll 并告诉我有哪些类型
+
+AI: [调用 load_assembly]
+    [调用 search_types keyword=""]
+
+    已加载程序集 MyApp.dll，包含以下类型：
+    - MyApp.Program (class, 5 methods)
+    - MyApp.Services.UserService (class, 10 methods)
+    ...
+```
+
+### 反编译和分析
+
+```
+用户: 反编译 UserService 类
+
+AI: [调用 decompile_type typeName="MyApp.Services.UserService"]
+
+    public class UserService
+    {
+        private readonly IDatabase _db;
+
+        public User GetUser(int id)
+        {
+            return _db.Query<User>().FirstOrDefault(u => u.Id == id);
+        }
+        ...
+    }
+```
+
+### 注入代码
+
+```
+用户: 在 GetUser 方法入口添加日志
+
+AI: [调用 inject_at_entry
+     methodFullName="MyApp.Services.UserService.GetUser"
+     instructions=[
+       {"opCode": "ldstr", "stringValue": "GetUser called"},
+       {"opCode": "call", "stringValue": "System.Console::WriteLine"}
+     ]]
+
+    已在 GetUser 方法入口注入日志代码。
+```
 
 ## 测试
 
 ```bash
-cd backend-service
+# 运行所有测试
 dotnet test
+
+# 仅运行 Server 测试
+dotnet test tests/DotNetMcp.Server.Tests
+
+# 仅运行 Backend 测试
+dotnet test tests/DotNetMcp.Backend.Tests
 ```
 
-当前测试状态: **113 个单元测试 + 36 个端到端测试** ✅
+当前测试状态：
+- Backend 测试：113 个 ✅
+- Server 测试：79 个 ✅
 
-## 依赖
+## 项目结构
 
-### C# Backend
-- Mono.Cecil - 程序集操作
-- ILSpy (ICSharpCode.Decompiler) - 反编译
-- Microsoft.CodeAnalysis (Roslyn) - C# 编译
+```
+DotNetMCP/
+├── src/
+│   ├── DotNetMcp.Server/          # MCP Server
+│   │   ├── Tools/                 # MCP 工具实现
+│   │   ├── Backend/               # 后端注册与管理
+│   │   └── Configuration/         # 配置
+│   └── DotNetMcp.Backend/         # 核心后端
+│       ├── Core/
+│       │   ├── Analysis/          # 分析服务
+│       │   ├── Modification/      # 修改服务
+│       │   ├── Context/           # 程序集上下文
+│       │   └── Identity/          # ID 系统
+│       ├── Services/              # 业务服务
+│       └── Controllers/           # HTTP API
+├── tests/
+│   ├── DotNetMcp.Server.Tests/    # Server 单元测试
+│   └── DotNetMcp.Backend.Tests/   # Backend 单元测试
+└── docs/
+    ├── zh/                        # 中文文档
+    └── en/                        # English docs
+```
 
-### Python MCP Server
-- fastmcp - MCP 框架
-- httpx - HTTP 客户端
+## 技术栈
 
-## 开发状态
+- **.NET 10.0** - 运行时
+- **ModelContextProtocol** - MCP SDK
+- **Mono.Cecil** - 程序集操作
+- **ICSharpCode.Decompiler** - 反编译
+- **Microsoft.CodeAnalysis** - Roslyn 编译
 
-| Phase | 状态 | 测试 |
-|-------|------|------|
-| Phase 1: 基础设施 | ✅ | 74 个 |
-| Phase 2: 分析能力 | ✅ | 19 个 |
-| Phase 3: 修改能力 | ✅ | 20 个 |
-| Phase 4: MCP 集成 | ✅ | 36 个 E2E |
+## 详细文档
 
-**总测试数**: 113 单元测试 + 36 端到端测试 ✅
+- [快速开始指南](docs/zh/getting-started.md)
+- [配置说明](docs/zh/configuration.md)
+- [工具参考](docs/zh/tools-reference.md)
 
 ## License
 

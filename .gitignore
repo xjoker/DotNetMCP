@@ -5,11 +5,17 @@ obj/
 *.exe
 *.pdb
 
+# 发布目录
+publish/
+publish-standalone/
+
 # IDE
 .vs/
 .vscode/
+.idea/
 *.user
 *.suo
+*.csproj.user
 
 # macOS
 .DS_Store
@@ -20,10 +26,16 @@ obj/
 
 # 环境配置
 .env
+appsettings.Development.json
+appsettings.Local.json
 
 # NuGet
 packages/
 *.nupkg
+
+# 测试结果
+TestResults/
+coverage/
 
 # AI 工作目录
 .AIINFO/
