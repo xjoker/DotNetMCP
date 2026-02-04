@@ -69,6 +69,19 @@ dotnet run --project src/DotNetMcp.Server
 
 ### Claude Desktop 配置
 
+#### 使用 Claude CLI 快速配置
+
+```bash
+# HTTP 模式（先启动服务，再添加）
+dotnet run --project src/DotNetMcp.Server &
+claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
+
+# Stdio 模式（使用编译后的可执行文件）
+claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
+```
+
+#### 手动配置
+
 在 `claude_desktop_config.json` 中添加：
 
 ```json

@@ -69,6 +69,19 @@ The service will start at `http://localhost:5000`.
 
 ### Claude Desktop Configuration
 
+#### Quick Setup with Claude CLI
+
+```bash
+# HTTP Mode (start the server first, then add)
+dotnet run --project src/DotNetMcp.Server &
+claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
+
+# Stdio Mode (using compiled executable)
+claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
+```
+
+#### Manual Configuration
+
 Add to `claude_desktop_config.json`:
 
 ```json
