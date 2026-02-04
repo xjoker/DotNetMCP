@@ -57,6 +57,7 @@ jobs:
       run: dotnet restore
 
     - name: Build and Publish
+      shell: bash
       run: |
         dotnet publish src/DotNetMcp.Server/DotNetMcp.Server.csproj \
           -c Release \
@@ -78,6 +79,7 @@ jobs:
 
     - name: Create archive (Windows)
       if: runner.os == 'Windows'
+      shell: pwsh
       run: |
         cd publish
         Compress-Archive -Path ${{ matrix.artifact_name }} -DestinationPath ${{ matrix.artifact_name }}.zip
