@@ -6,6 +6,12 @@
 
 基于 MCP (Model Context Protocol) 的 .NET 程序集逆向工程和修改工具。
 
+## 文档
+
+- [快速开始指南](docs/zh/getting-started.md)
+- [配置说明](docs/zh/configuration.md)
+- [工具参考](docs/zh/tools-reference.md)
+
 ## 项目概述
 
 DotNet MCP 是一个为 AI 助手（如 Claude）提供 .NET 程序集分析和修改能力的工具。通过 MCP 协议，AI 可以：
@@ -335,12 +341,6 @@ DotNetMCP/
 - **Mono.Cecil** - 程序集操作
 - **ICSharpCode.Decompiler** - 反编译
 - **Microsoft.CodeAnalysis** - Roslyn 编译
-
-## 详细文档
-
-- [快速开始指南](docs/zh/getting-started.md)
-- [配置说明](docs/zh/configuration.md)
-- [工具参考](docs/zh/tools-reference.md)
 
 ## License
 

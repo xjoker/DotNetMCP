@@ -6,6 +6,12 @@ English | [中文](README.zh.md)
 
 A .NET assembly reverse engineering and modification tool based on MCP (Model Context Protocol).
 
+## Documentation
+
+- [Getting Started](docs/en/getting-started.md)
+- [Configuration](docs/en/configuration.md)
+- [Tools Reference](docs/en/tools-reference.md)
+
 ## Overview
 
 DotNet MCP is a tool that provides .NET assembly analysis and modification capabilities for AI assistants (like Claude). Through the MCP protocol, AI can:
@@ -335,12 +341,6 @@ DotNetMCP/
 - **Mono.Cecil** - Assembly manipulation
 - **ICSharpCode.Decompiler** - Decompilation
 - **Microsoft.CodeAnalysis** - Roslyn compilation
-
-## Documentation
-
-- [Getting Started](docs/en/getting-started.md)
-- [Configuration](docs/en/configuration.md)
-- [Tools Reference](docs/en/tools-reference.md)
 
 ## License
 
