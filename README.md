@@ -39,6 +39,81 @@ flowchart TB
     end
 ```
 
+## Security
+
+### API Key Authentication
+
+The Backend service supports API Key authentication for HTTP endpoints.
+
+**Quick Setup:**
+```bash
+export API_KEYS="your-secret-key"
+```
+
+**Supported Headers:**
+- `X-API-Key: your-api-key`
+- `Authorization: Bearer your-api-key`
+
+**Excluded Paths:** `/`, `/health`, `/openapi` (no authentication required)
+
+> **Note**: In production, always configure API keys. The system will log a critical warning if running in Production without API keys configured.
+
+## Multi-Backend Architecture
+
+```mermaid
+flowchart TB
+    Client["Claude / IDE"] -->|"MCP Protocol"| Server
+
+    subgraph Server["DotNetMcp.Server"]
+        Registry["Backend Registry"]
+    end
+
+    Registry --> Local["Local Backend<br/>(In-Process)"]
+    Registry -->|"HTTP + API Key"| Remote1["Remote Backend 1"]
+    Registry -->|"HTTP + API Key"| Remote2["Remote Backend 2"]
+```
+
+### Backend Management via AI
+
+```
+# Register backend with API Key authentication
+User: Register remote backend http://server:5000 with API key "secret123"
+
+AI: [Call register_remote_backend
+     id="analysis-1"
+     name="Analysis Server"
+     endpoint="http://server:5000"
+     apiKey="secret123"]
+
+    Successfully registered remote backend "Analysis Server"
+
+# List all backends
+User: List all backends
+
+AI: [Call list_backends]
+
+    Available backends:
+    - local (default) - Local, Healthy
+    - analysis-1 - Remote, Healthy
+
+# Set default backend
+User: Use analysis-1 as default
+
+AI: [Call set_default_backend id="analysis-1"]
+
+    Default backend set to "analysis-1"
+```
+
+**Parameters for `register_remote_backend`:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `id` | Yes | Unique backend ID |
+| `name` | Yes | Display name |
+| `endpoint` | Yes | HTTP URL |
+| `apiKey` | No | API Key for authentication |
+| `timeoutSeconds` | No | Timeout (default: 30) |
+
 ## Quick Start
 
 ### Requirements

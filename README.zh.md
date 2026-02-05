@@ -39,6 +39,81 @@ flowchart TB
     end
 ```
 
+## 安全
+
+### API Key 认证
+
+Backend 服务支持 HTTP 端点的 API Key 认证。
+
+**快速配置：**
+```bash
+export API_KEYS="your-secret-key"
+```
+
+**支持的请求头：**
+- `X-API-Key: your-api-key`
+- `Authorization: Bearer your-api-key`
+
+**排除路径：** `/`、`/health`、`/openapi`（无需认证）
+
+> **注意**：生产环境中请务必配置 API Keys。如果在生产环境中未配置 API Keys，系统将记录严重警告。
+
+## 多后端架构
+
+```mermaid
+flowchart TB
+    Client["Claude / IDE"] -->|"MCP Protocol"| Server
+
+    subgraph Server["DotNetMcp.Server"]
+        Registry["Backend Registry"]
+    end
+
+    Registry --> Local["Local Backend<br/>(进程内)"]
+    Registry -->|"HTTP + API Key"| Remote1["Remote Backend 1"]
+    Registry -->|"HTTP + API Key"| Remote2["Remote Backend 2"]
+```
+
+### 通过 AI 管理后端
+
+```
+# 注册带 API Key 认证的后端
+用户: 注册远程后端 http://server:5000，API key 为 "secret123"
+
+AI: [调用 register_remote_backend
+     id="analysis-1"
+     name="Analysis Server"
+     endpoint="http://server:5000"
+     apiKey="secret123"]
+
+    成功注册远程后端 "Analysis Server"
+
+# 列出所有后端
+用户: 列出所有后端
+
+AI: [调用 list_backends]
+
+    可用后端：
+    - local (默认) - Local, Healthy
+    - analysis-1 - Remote, Healthy
+
+# 设置默认后端
+用户: 使用 analysis-1 作为默认后端
+
+AI: [调用 set_default_backend id="analysis-1"]
+
+    默认后端已设置为 "analysis-1"
+```
+
+**`register_remote_backend` 参数：**
+
+| 参数 | 必需 | 说明 |
+|------|------|------|
+| `id` | 是 | 唯一后端 ID |
+| `name` | 是 | 显示名称 |
+| `endpoint` | 是 | HTTP URL |
+| `apiKey` | 否 | 认证用 API Key |
+| `timeoutSeconds` | 否 | 超时时间（默认: 30） |
+
 ## 快速开始
 
 ### 环境要求
