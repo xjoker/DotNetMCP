@@ -57,24 +57,27 @@ public class ReferenceAssemblyProvider
     /// </summary>
     private void AddCoreReferences(List<MetadataReference> references)
     {
-        // System.Runtime
-        var systemRuntime = Assembly.Load("System.Runtime");
-        references.Add(MetadataReference.CreateFromFile(systemRuntime.Location));
+        // 获取运行时目录（支持单文件发布）
+        var runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
 
-        // System.Private.CoreLib
-        references.Add(MetadataReference.CreateFromFile(typeof(object).Assembly.Location));
+        // 核心程序集列表
+        var coreAssemblies = new[]
+        {
+            "System.Runtime.dll",
+            "System.Private.CoreLib.dll",
+            "System.Console.dll",
+            "System.Linq.dll",
+            "System.Collections.dll"
+        };
 
-        // System.Console
-        var consoleAssembly = Assembly.Load("System.Console");
-        references.Add(MetadataReference.CreateFromFile(consoleAssembly.Location));
-
-        // System.Linq
-        var linqAssembly = Assembly.Load("System.Linq");
-        references.Add(MetadataReference.CreateFromFile(linqAssembly.Location));
-
-        // System.Collections
-        var collectionsAssembly = Assembly.Load("System.Collections");
-        references.Add(MetadataReference.CreateFromFile(collectionsAssembly.Location));
+        foreach (var assemblyName in coreAssemblies)
+        {
+            var assemblyPath = Path.Combine(runtimeDir, assemblyName);
+            if (File.Exists(assemblyPath))
+            {
+                references.Add(MetadataReference.CreateFromFile(assemblyPath));
+            }
+        }
     }
 
     /// <summary>
