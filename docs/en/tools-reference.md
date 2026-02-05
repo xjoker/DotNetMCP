@@ -589,8 +589,11 @@ Register a remote backend.
 **Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `url` | string | Yes | Remote backend URL |
-| `name` | string | No | Backend name |
+| `id` | string | Yes | Unique backend identifier |
+| `name` | string | Yes | Display name for the backend |
+| `endpoint` | string | Yes | HTTP endpoint URL |
+| `apiKey` | string | No | API key for authentication |
+| `timeoutSeconds` | int | No | Request timeout in seconds (default 30) |
 
 ---
 

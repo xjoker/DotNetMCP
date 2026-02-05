@@ -21,10 +21,10 @@ AI 静态逆向工程 MCP 服务，使 AI 能够自主进行 .NET 程序集的�
 ## 开发约定
 
 ### 项目结构
-- `src/DotNetMcp/Core/` - 核心服务实现
-- `src/DotNetMcp/Infrastructure/` - 基础设施组件
-- `src/DotNetMcp/Tools/` - MCP 工具
-- `src/DotNetMcp/Mcp/` - MCP 协议实现
+- `src/DotNetMcp.Server/` - MCP 服务端（工具、配置、后端管理）
+- `src/DotNetMcp.Backend/` - 核心后端（分析、反编译、修改服务）
+- `tests/DotNetMcp.Server.Tests/` - Server 单元测试
+- `tests/DotNetMcp.Backend.Tests/` - Backend 单元测试
 
 ### 命名规范
 - 类名：PascalCase
@@ -32,8 +32,9 @@ AI 静态逆向工程 MCP 服务，使 AI 能够自主进行 .NET 程序集的�
 - 私有字段：_camelCase
 
 ### 依赖
-- Mono.Cecil >= 0.11.5
-- ICSharpCode.Decompiler >= 8.0
+- Mono.Cecil 0.11.6
+- ICSharpCode.Decompiler 9.1.0.7988
+- Microsoft.CodeAnalysis.CSharp 5.0.0
 
 ## 关键设计决策
 

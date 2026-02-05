@@ -107,7 +107,23 @@
 
 3. **配置 Claude Desktop**
 
-   编辑配置文件 `~/.config/Claude/claude_desktop_config.json`。
+   编辑配置文件 `~/.config/Claude/claude_desktop_config.json`：
+   ```json
+   {
+     "mcpServers": {
+       "dotnet-mcp": {
+         "command": "dotnet",
+         "args": [
+           "run",
+           "--project",
+           "/path/to/DotNetMCP/src/DotNetMcp.Server",
+           "--",
+           "--stdio"
+         ]
+       }
+     }
+   }
+   ```
 
 ### 方式二：使用已编译的可执行文件
 

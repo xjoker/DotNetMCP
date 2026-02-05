@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-> **v0.0.2-dev** - 纯 C# 架构，MCP Server 与 Backend 统一
+> **v0.0.2** - 纯 C# 架构，MCP Server 与 Backend 统一
 
 基于 MCP (Model Context Protocol) 的 .NET 程序集逆向工程和修改工具。
 

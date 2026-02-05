@@ -589,8 +589,11 @@
 **参数：**
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `url` | string | 是 | 远程后端 URL |
-| `name` | string | 否 | 后端名称 |
+| `id` | string | 是 | 唯一后端标识符 |
+| `name` | string | 是 | 后端显示名称 |
+| `endpoint` | string | 是 | HTTP 端点 URL |
+| `apiKey` | string | 否 | 认证用 API 密钥 |
+| `timeoutSeconds` | int | 否 | 请求超时秒数（默认 30） |
 
 ---
 

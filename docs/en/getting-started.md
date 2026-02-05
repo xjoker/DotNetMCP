@@ -107,7 +107,23 @@ English | [中文](../zh/getting-started.md)
 
 3. **Configure Claude Desktop**
 
-   Edit configuration file `~/.config/Claude/claude_desktop_config.json`.
+   Edit configuration file `~/.config/Claude/claude_desktop_config.json`:
+   ```json
+   {
+     "mcpServers": {
+       "dotnet-mcp": {
+         "command": "dotnet",
+         "args": [
+           "run",
+           "--project",
+           "/path/to/DotNetMCP/src/DotNetMcp.Server",
+           "--",
+           "--stdio"
+         ]
+       }
+     }
+   }
+   ```
 
 ### Option 2: Use Compiled Executable
 
