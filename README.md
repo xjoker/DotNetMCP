@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-> **v0.0.1** - Pure C# Architecture, Unified MCP Server and Backend
+> **v0.0.2-dev** - Pure C# Architecture, Unified MCP Server and Backend
 
 A .NET assembly reverse engineering and modification tool based on MCP (Model Context Protocol).
 
