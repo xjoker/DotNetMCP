@@ -57,6 +57,9 @@ public interface IBackend
     // 批量操作
     Task<BatchDecompileResult> BatchDecompileAsync(string mvid, string[] memberKeys, int maxTotalChars = 200000, CancellationToken cancellationToken = default);
 
+    // 对比操作
+    Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default);
+
     // 修改操作
     Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
     Task<ModificationResult> ReplaceMethodBodyAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
@@ -114,4 +117,43 @@ public class BatchDecompileItem
     public string Language { get; set; } = "csharp";
     public int TotalLines { get; set; }
     public bool IsError { get; set; }
+}
+
+/// <summary>
+/// 程序集对比结果
+/// </summary>
+public class CompareAssembliesResult
+{
+    public bool IsSuccess { get; set; }
+    public string? ErrorMessage { get; set; }
+    public CompareAssembliesSummary Summary { get; set; } = new();
+    public List<CompareTypeDiffItem> TypeDiffs { get; set; } = new();
+
+    public static CompareAssembliesResult Success(CompareAssembliesSummary summary, List<CompareTypeDiffItem> diffs)
+        => new() { IsSuccess = true, Summary = summary, TypeDiffs = diffs };
+
+    public static CompareAssembliesResult Failure(string error)
+        => new() { IsSuccess = false, ErrorMessage = error };
+}
+
+public class CompareAssembliesSummary
+{
+    public int Added { get; set; }
+    public int Removed { get; set; }
+    public int Modified { get; set; }
+    public int Unchanged { get; set; }
+}
+
+public class CompareTypeDiffItem
+{
+    public required string TypeName { get; set; }
+    public required string DiffType { get; set; }
+    public List<CompareMemberDiffItem> MemberDiffs { get; set; } = new();
+}
+
+public class CompareMemberDiffItem
+{
+    public required string Name { get; set; }
+    public required string MemberType { get; set; }
+    public required string DiffType { get; set; }
 }

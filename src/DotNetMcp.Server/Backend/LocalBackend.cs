@@ -2,6 +2,8 @@ using DotNetMcp.Backend.Services;
 using DotNetMcp.Backend.Core.Context;
 using DotNetMcp.Backend.Core.Analysis;
 using Microsoft.Extensions.Logging;
+using DiffComparator = DotNetMcp.Backend.Core.Modification.DiffComparator;
+using ModificationDiffType = DotNetMcp.Backend.Core.Modification.DiffType;
 
 namespace DotNetMcp.Server.Backend;
 
@@ -214,6 +216,62 @@ public class LocalBackend : IBackend
         }
 
         return Task.FromResult(BatchDecompileResult.Success(items, truncated, totalChars, items.Count, memberKeys.Length));
+    }
+
+    public Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
+    {
+        var leftContext = GetContext(leftMvid);
+        var rightContext = GetContext(rightMvid);
+
+        if (leftContext == null)
+            return Task.FromResult(CompareAssembliesResult.Failure($"Left assembly '{leftMvid}' not found"));
+        if (rightContext == null)
+            return Task.FromResult(CompareAssembliesResult.Failure($"Right assembly '{rightMvid}' not found"));
+        if (leftContext.Assembly == null || rightContext.Assembly == null)
+            return Task.FromResult(CompareAssembliesResult.Failure("Assembly not loaded"));
+
+        var comparator = new DiffComparator();
+        var diff = comparator.CompareAssemblies(leftContext.Assembly, rightContext.Assembly);
+
+        var summary = new CompareAssembliesSummary();
+        var items = new List<CompareTypeDiffItem>();
+
+        foreach (var typeDiff in diff.TypeDiffs)
+        {
+            if (namespaceFilter != null)
+            {
+                var ns = typeDiff.TypeName.Contains('.')
+                    ? typeDiff.TypeName[..typeDiff.TypeName.LastIndexOf('.')]
+                    : "";
+                if (!ns.StartsWith(namespaceFilter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+            }
+
+            switch (typeDiff.DiffType)
+            {
+                case ModificationDiffType.Added: summary.Added++; break;
+                case ModificationDiffType.Removed: summary.Removed++; break;
+                case ModificationDiffType.Modified: summary.Modified++; break;
+                default: summary.Unchanged++; break;
+            }
+
+            if (!includeUnchanged && typeDiff.DiffType == ModificationDiffType.Unchanged)
+                continue;
+
+            items.Add(new CompareTypeDiffItem
+            {
+                TypeName = typeDiff.TypeName,
+                DiffType = typeDiff.DiffType.ToString(),
+                MemberDiffs = typeDiff.MemberDiffs.Select(m => new CompareMemberDiffItem
+                {
+                    Name = m.MemberName,
+                    MemberType = m.MemberType,
+                    DiffType = m.DiffType.ToString()
+                }).ToList()
+            });
+        }
+
+        return Task.FromResult(CompareAssembliesResult.Success(summary, items));
     }
 
     #endregion

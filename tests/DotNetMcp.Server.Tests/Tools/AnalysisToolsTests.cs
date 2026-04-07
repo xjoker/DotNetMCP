@@ -304,6 +304,70 @@ public class AnalysisToolsTests
 
     #endregion
 
+    #region compare_assemblies 测试
+
+    [Fact]
+    public async Task CompareAssemblies_WithDifferences_ReturnsSummary()
+    {
+        // Arrange
+        var leftMvid = "left-mvid";
+        var rightMvid = "right-mvid";
+        var summary = new CompareAssembliesSummary { Added = 1, Removed = 0, Modified = 1, Unchanged = 5 };
+        var diffs = new List<CompareTypeDiffItem>
+        {
+            new() { TypeName = "Ns.NewClass", DiffType = "Added", MemberDiffs = new() },
+            new() { TypeName = "Ns.ChangedClass", DiffType = "Modified", MemberDiffs = new()
+            {
+                new() { Name = "NewMethod", MemberType = "Method", DiffType = "Added" }
+            }}
+        };
+
+        _mockBackend.Setup(b => b.CompareAssembliesAsync(leftMvid, rightMvid, null, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CompareAssembliesResult.Success(summary, diffs));
+
+        // Act
+        var result = await _tools.CompareAssemblies(leftMvid, rightMvid);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(1, result.Summary!.Added);
+        Assert.Equal(1, result.Summary.Modified);
+        Assert.Equal(2, result.TypeDiffs!.Length);
+    }
+
+    [Fact]
+    public async Task CompareAssemblies_AssemblyNotFound_ReturnsError()
+    {
+        // Arrange
+        _mockBackend.Setup(b => b.CompareAssembliesAsync(It.IsAny<string>(), It.IsAny<string>(), null, false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CompareAssembliesResult.Failure("Assembly not found"));
+
+        // Act
+        var result = await _tools.CompareAssemblies("bad-mvid", "other-mvid");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("not found", result.Error!);
+    }
+
+    [Fact]
+    public async Task CompareAssemblies_NoBackend_ReturnsError()
+    {
+        // Arrange
+        var registry = new Mock<IBackendRegistry>();
+        registry.Setup(r => r.Get(It.IsAny<string?>())).Returns((IBackend?)null);
+        var tools = new AnalysisTools(registry.Object);
+
+        // Act
+        var result = await tools.CompareAssemblies("left", "right");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("No backend available", result.Error);
+    }
+
+    #endregion
+
     #region batch_decompile 测试
 
     [Fact]

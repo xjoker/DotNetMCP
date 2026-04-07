@@ -297,6 +297,23 @@ public class RemoteBackend : IBackend
         }
     }
 
+    public async Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
+    {
+        var url = $"/api/analysis/compare?leftMvid={Uri.EscapeDataString(leftMvid)}&rightMvid={Uri.EscapeDataString(rightMvid)}&includeUnchanged={includeUnchanged}";
+        if (namespaceFilter != null) url += $"&namespaceFilter={Uri.EscapeDataString(namespaceFilter)}";
+
+        var httpRequest = CreateRequest(HttpMethod.Get, url);
+        try
+        {
+            var result = await SendAsync<CompareAssembliesResult>(httpRequest, cancellationToken);
+            return result ?? CompareAssembliesResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return CompareAssembliesResult.Failure(ex.Message);
+        }
+    }
+
     #endregion
 
     #region 修改操作

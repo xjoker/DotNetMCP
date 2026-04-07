@@ -202,6 +202,43 @@ public sealed class AnalysisTools
         };
     }
     /// <summary>
+    /// 对比两个已加载的程序集
+    /// </summary>
+    [McpServerTool(Name = "compare_assemblies"), Description("Compare two loaded assemblies to find structural differences. Detects added, removed, and modified types and their members. Load two versions of the same assembly first, then compare by their MVIDs.")]
+    public async Task<CompareAssembliesToolResult> CompareAssemblies(
+        [Description("MVID of the left (original/old) assembly")] string leftMvid,
+        [Description("MVID of the right (modified/new) assembly")] string rightMvid,
+        [Description("Filter by namespace prefix (e.g., 'MyApp.Services'). Only types in this namespace are compared.")] string? namespaceFilter = null,
+        [Description("Include unchanged types in the result (default: false)")] bool includeUnchanged = false,
+        [Description("Optional backend ID")] string? backendId = null)
+    {
+        var backend = _registry.Get(backendId);
+        if (backend == null)
+        {
+            return new CompareAssembliesToolResult { Success = false, Error = "No backend available" };
+        }
+
+        var result = await backend.CompareAssembliesAsync(leftMvid, rightMvid, namespaceFilter, includeUnchanged);
+        return new CompareAssembliesToolResult
+        {
+            Success = result.IsSuccess,
+            Summary = result.Summary,
+            TypeDiffs = result.TypeDiffs.Select(t => new CompareTypeDiffDto
+            {
+                TypeName = t.TypeName,
+                DiffType = t.DiffType,
+                MemberDiffs = t.MemberDiffs.Select(m => new CompareMemberDiffDto
+                {
+                    Name = m.Name,
+                    MemberType = m.MemberType,
+                    DiffType = m.DiffType
+                }).ToArray()
+            }).ToArray(),
+            Error = result.ErrorMessage
+        };
+    }
+
+    /// <summary>
     /// 批量反编译多个成员
     /// </summary>
     [McpServerTool(Name = "batch_decompile"), Description("Decompile multiple types or methods in a single call with a character budget. Use 'TypeName' for types or 'TypeName::MethodName' for methods. Stops adding results when maxTotalChars is exceeded. Individual errors are returned inline without failing the batch.")]
@@ -318,4 +355,26 @@ public record BatchDecompileItemDto
     public string? Code { get; init; }
     public int TotalLines { get; init; }
     public bool IsError { get; init; }
+}
+
+public record CompareAssembliesToolResult
+{
+    public bool Success { get; init; }
+    public CompareAssembliesSummary? Summary { get; init; }
+    public CompareTypeDiffDto[]? TypeDiffs { get; init; }
+    public string? Error { get; init; }
+}
+
+public record CompareTypeDiffDto
+{
+    public string? TypeName { get; init; }
+    public string? DiffType { get; init; }
+    public CompareMemberDiffDto[]? MemberDiffs { get; init; }
+}
+
+public record CompareMemberDiffDto
+{
+    public string? Name { get; init; }
+    public string? MemberType { get; init; }
+    public string? DiffType { get; init; }
 }
