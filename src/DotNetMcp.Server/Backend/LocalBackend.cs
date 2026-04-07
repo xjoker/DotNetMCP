@@ -218,6 +218,60 @@ public class LocalBackend : IBackend
         return Task.FromResult(BatchDecompileResult.Success(items, truncated, totalChars, items.Count, memberKeys.Length));
     }
 
+    public Task<ChunkingPlanResult> PlanChunkingAsync(string mvid, string typeName, string? methodName = null, int targetChunkSize = 6000, int overlap = 2, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(ChunkingPlanResult.Failure($"Assembly '{mvid}' not found"));
+
+        // Decompile the member
+        var decompileResult = methodName != null
+            ? _analysisService.DecompileMethod(context, typeName, methodName)
+            : _analysisService.DecompileType(context, typeName);
+
+        if (!decompileResult.IsSuccess || string.IsNullOrEmpty(decompileResult.Code))
+            return Task.FromResult(ChunkingPlanResult.Failure(decompileResult.ErrorMessage ?? "Decompilation failed"));
+
+        var lines = decompileResult.Code.Split('\n');
+        var totalLines = lines.Length;
+
+        if (totalLines == 0)
+            return Task.FromResult(ChunkingPlanResult.Success(new List<ChunkInfo>(), 0, 0));
+
+        // Estimate avgCharsPerLine from sample
+        var sampleSize = Math.Min(totalLines, 20);
+        var sampleChars = lines.Take(sampleSize).Sum(l => l.Length);
+        var avgCharsPerLine = Math.Max(1, sampleChars / sampleSize);
+
+        // Calculate lines per chunk
+        var linesPerChunk = Math.Max(1, targetChunkSize / avgCharsPerLine);
+
+        if (overlap >= linesPerChunk)
+            return Task.FromResult(ChunkingPlanResult.Failure($"Overlap ({overlap}) must be less than lines per chunk ({linesPerChunk}). Increase targetChunkSize or reduce overlap."));
+
+        var chunks = new List<ChunkInfo>();
+        var currentStart = 1;
+
+        while (currentStart <= totalLines)
+        {
+            var currentEnd = Math.Min(currentStart + linesPerChunk - 1, totalLines);
+            chunks.Add(new ChunkInfo
+            {
+                StartLine = currentStart,
+                EndLine = currentEnd,
+                EstimatedChars = (currentEnd - currentStart + 1) * avgCharsPerLine
+            });
+
+            if (currentEnd >= totalLines) break;
+
+            var nextStart = currentEnd + 1 - overlap;
+            if (nextStart <= currentStart) nextStart = currentStart + 1;
+            currentStart = nextStart;
+        }
+
+        return Task.FromResult(ChunkingPlanResult.Success(chunks, totalLines, avgCharsPerLine));
+    }
+
     public Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
     {
         var leftContext = GetContext(leftMvid);

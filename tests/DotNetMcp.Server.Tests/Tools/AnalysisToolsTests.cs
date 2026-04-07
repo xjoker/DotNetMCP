@@ -304,6 +304,61 @@ public class AnalysisToolsTests
 
     #endregion
 
+    #region plan_chunking 测试
+
+    [Fact]
+    public async Task PlanChunking_WithValidType_ReturnsChunks()
+    {
+        // Arrange
+        var chunks = new List<ChunkInfo>
+        {
+            new() { StartLine = 1, EndLine = 75, EstimatedChars = 5250 },
+            new() { StartLine = 74, EndLine = 100, EstimatedChars = 1890 }
+        };
+
+        _mockBackend.Setup(b => b.PlanChunkingAsync("", "MyNs.MyClass", null, 6000, 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ChunkingPlanResult.Success(chunks, 100, 70));
+
+        // Act
+        var result = await _tools.PlanChunking("MyNs.MyClass");
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Chunks!.Length);
+        Assert.Equal(100, result.TotalLines);
+        Assert.Equal(70, result.AvgCharsPerLine);
+    }
+
+    [Fact]
+    public async Task PlanChunking_TypeNotFound_ReturnsError()
+    {
+        // Arrange
+        _mockBackend.Setup(b => b.PlanChunkingAsync("", "NonExistent", null, 6000, 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ChunkingPlanResult.Failure("Type 'NonExistent' not found"));
+
+        // Act
+        var result = await _tools.PlanChunking("NonExistent");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("not found", result.Error!);
+    }
+
+    [Fact]
+    public async Task PlanChunking_NoBackend_ReturnsError()
+    {
+        var registry = new Mock<IBackendRegistry>();
+        registry.Setup(r => r.Get(It.IsAny<string?>())).Returns((IBackend?)null);
+        var tools = new AnalysisTools(registry.Object);
+
+        var result = await tools.PlanChunking("Any.Type");
+
+        Assert.False(result.Success);
+        Assert.Equal("No backend available", result.Error);
+    }
+
+    #endregion
+
     #region compare_assemblies 测试
 
     [Fact]

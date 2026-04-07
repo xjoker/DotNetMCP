@@ -297,6 +297,23 @@ public class RemoteBackend : IBackend
         }
     }
 
+    public async Task<ChunkingPlanResult> PlanChunkingAsync(string mvid, string typeName, string? methodName = null, int targetChunkSize = 6000, int overlap = 2, CancellationToken cancellationToken = default)
+    {
+        var url = $"/api/analysis/{mvid}/plan-chunking?typeName={Uri.EscapeDataString(typeName)}&targetChunkSize={targetChunkSize}&overlap={overlap}";
+        if (methodName != null) url += $"&methodName={Uri.EscapeDataString(methodName)}";
+
+        var httpRequest = CreateRequest(HttpMethod.Get, url);
+        try
+        {
+            var result = await SendAsync<ChunkingPlanResult>(httpRequest, cancellationToken);
+            return result ?? ChunkingPlanResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return ChunkingPlanResult.Failure(ex.Message);
+        }
+    }
+
     public async Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
     {
         var url = $"/api/analysis/compare?leftMvid={Uri.EscapeDataString(leftMvid)}&rightMvid={Uri.EscapeDataString(rightMvid)}&includeUnchanged={includeUnchanged}";

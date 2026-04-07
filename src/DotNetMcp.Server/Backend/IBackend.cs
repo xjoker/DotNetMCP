@@ -60,6 +60,9 @@ public interface IBackend
     // 对比操作
     Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default);
 
+    // 分块规划
+    Task<ChunkingPlanResult> PlanChunkingAsync(string mvid, string typeName, string? methodName = null, int targetChunkSize = 6000, int overlap = 2, CancellationToken cancellationToken = default);
+
     // 修改操作
     Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
     Task<ModificationResult> ReplaceMethodBodyAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
@@ -156,4 +159,30 @@ public class CompareMemberDiffItem
     public required string Name { get; set; }
     public required string MemberType { get; set; }
     public required string DiffType { get; set; }
+}
+
+/// <summary>
+/// 分块规划结果
+/// </summary>
+public class ChunkingPlanResult
+{
+    public bool IsSuccess { get; set; }
+    public string? ErrorMessage { get; set; }
+    public List<ChunkInfo> Chunks { get; set; } = new();
+    public int TotalLines { get; set; }
+    public int AvgCharsPerLine { get; set; }
+    public int TotalEstimatedChars { get; set; }
+
+    public static ChunkingPlanResult Success(List<ChunkInfo> chunks, int totalLines, int avgCharsPerLine)
+        => new() { IsSuccess = true, Chunks = chunks, TotalLines = totalLines, AvgCharsPerLine = avgCharsPerLine, TotalEstimatedChars = totalLines * avgCharsPerLine };
+
+    public static ChunkingPlanResult Failure(string error)
+        => new() { IsSuccess = false, ErrorMessage = error };
+}
+
+public class ChunkInfo
+{
+    public int StartLine { get; set; }
+    public int EndLine { get; set; }
+    public int EstimatedChars { get; set; }
 }

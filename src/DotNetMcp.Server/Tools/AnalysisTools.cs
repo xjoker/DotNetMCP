@@ -202,6 +202,34 @@ public sealed class AnalysisTools
         };
     }
     /// <summary>
+    /// 规划源码分块方案
+    /// </summary>
+    [McpServerTool(Name = "plan_chunking"), Description("Plan line-range chunks for a type or method's decompiled source. Useful for LLM-friendly paging of large source code. Returns chunk boundaries with estimated character counts based on a target character budget per chunk.")]
+    public async Task<ChunkingPlanToolResult> PlanChunking(
+        [Description("Full name of the type to plan chunks for")] string typeName,
+        [Description("Optional method name. If specified, only the method's source is chunked.")] string? methodName = null,
+        [Description("Target characters per chunk (default: 6000). Adjust based on LLM context budget.")] int targetChunkSize = 6000,
+        [Description("Number of overlapping lines between consecutive chunks (default: 2)")] int overlap = 2,
+        [Description("MVID of the assembly. Omit to use the default loaded assembly.")] string? mvid = null,
+        [Description("Optional backend ID")] string? backendId = null)
+    {
+        var backend = _registry.Get(backendId);
+        if (backend == null)
+            return new ChunkingPlanToolResult { Success = false, Error = "No backend available" };
+
+        var result = await backend.PlanChunkingAsync(mvid ?? "", typeName, methodName, targetChunkSize, overlap);
+        return new ChunkingPlanToolResult
+        {
+            Success = result.IsSuccess,
+            Chunks = result.Chunks.Select(c => new ChunkInfoDto { StartLine = c.StartLine, EndLine = c.EndLine, EstimatedChars = c.EstimatedChars }).ToArray(),
+            TotalLines = result.TotalLines,
+            AvgCharsPerLine = result.AvgCharsPerLine,
+            TotalEstimatedChars = result.TotalEstimatedChars,
+            Error = result.ErrorMessage
+        };
+    }
+
+    /// <summary>
     /// 对比两个已加载的程序集
     /// </summary>
     [McpServerTool(Name = "compare_assemblies"), Description("Compare two loaded assemblies to find structural differences. Detects added, removed, and modified types and their members. Load two versions of the same assembly first, then compare by their MVIDs.")]
@@ -377,4 +405,21 @@ public record CompareMemberDiffDto
     public string? Name { get; init; }
     public string? MemberType { get; init; }
     public string? DiffType { get; init; }
+}
+
+public record ChunkingPlanToolResult
+{
+    public bool Success { get; init; }
+    public ChunkInfoDto[]? Chunks { get; init; }
+    public int TotalLines { get; init; }
+    public int AvgCharsPerLine { get; init; }
+    public int TotalEstimatedChars { get; init; }
+    public string? Error { get; init; }
+}
+
+public record ChunkInfoDto
+{
+    public int StartLine { get; init; }
+    public int EndLine { get; init; }
+    public int EstimatedChars { get; init; }
 }
