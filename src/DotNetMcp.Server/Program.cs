@@ -21,8 +21,21 @@ for (int i = 0; i < args.Length; i++)
             host = args[++i];
             break;
         case "--port" when i + 1 < args.Length:
-            if (int.TryParse(args[++i], out var p)) port = p;
+            if (int.TryParse(args[++i], out var p) && p > 0 && p <= 65535)
+            {
+                port = p;
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: Invalid port number '{args[i]}'. Must be 1-65535.");
+                return;
+            }
             break;
+        case "-v":
+        case "--version":
+            var assemblyVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            Console.WriteLine($"DotNet MCP Server v{assemblyVersion}");
+            return;
         case "-h":
         case "--help":
             Console.WriteLine("DotNetMcp.Server - .NET Assembly Analysis MCP Server");
@@ -33,6 +46,7 @@ for (int i = 0; i < args.Length; i++)
             Console.WriteLine("  --stdio          Use stdio transport (for Claude Desktop)");
             Console.WriteLine("  --host <ip>      Bind to specified IP (default: localhost)");
             Console.WriteLine("  --port <port>    Bind to specified port (default: 5000)");
+            Console.WriteLine("  -v, --version    Show version information");
             Console.WriteLine("  -h, --help       Show this help message");
             Console.WriteLine();
             Console.WriteLine("Examples:");
@@ -74,6 +88,9 @@ builder.Services.AddSingleton<LocalBackend>();
 builder.Services.AddHttpClient();
 builder.Services.AddHostedService<BackendHealthMonitor>();
 
+// 从程序集读取版本号
+var serverVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
+
 // 配置 MCP Server
 if (transportMode == "stdio")
 {
@@ -83,7 +100,7 @@ if (transportMode == "stdio")
         options.ServerInfo = new()
         {
             Name = "dotnet-mcp",
-            Version = "1.0.0"
+            Version = serverVersion
         };
     })
     .WithStdioServerTransport()
@@ -100,7 +117,7 @@ else
         options.ServerInfo = new()
         {
             Name = "dotnet-mcp",
-            Version = "1.0.0"
+            Version = serverVersion
         };
     })
     .WithHttpTransport()
@@ -149,7 +166,7 @@ if (transportMode == "http")
     app.MapGet("/", () => Results.Ok(new
     {
         name = "DotNetMcp.Server",
-        version = "1.0.0",
+        version = serverVersion,
         mcp_endpoint = "/mcp",
         health_endpoint = "/health",
         transport = "http"

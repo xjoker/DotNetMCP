@@ -20,7 +20,8 @@ public class McpServerOptions
     /// <summary>
     /// 服务器版本
     /// </summary>
-    public string ServerVersion { get; set; } = "1.0.0";
+    public string ServerVersion { get; set; } =
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
 
     /// <summary>
     /// 远程后端配置列表

@@ -77,7 +77,7 @@ public class AssemblyToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class AssemblyToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -187,7 +187,7 @@ public class AssemblyToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("Failed to unload assembly", result.Error);
+        Assert.Contains("not found", result.Error);
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public class AssemblyToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion

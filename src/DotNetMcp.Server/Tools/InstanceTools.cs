@@ -136,7 +136,7 @@ public sealed class InstanceTools
         var backend = _registry.Get(id);
         if (backend == null)
         {
-            return new CheckHealthResult { Success = false, Error = "Backend not found" };
+            return new CheckHealthResult { Success = false, Error = "Backend not found. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var healthy = await backend.CheckHealthAsync();

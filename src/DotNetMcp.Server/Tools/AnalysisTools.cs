@@ -32,7 +32,7 @@ public sealed class AnalysisTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new DecompileTypeResult { Success = false, Error = "No backend available" };
+            return new DecompileTypeResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var result = await backend.DecompileTypeAsync(mvid ?? "", typeName, language, preferOriginalSource);
@@ -41,7 +41,7 @@ public sealed class AnalysisTools
             Success = result.IsSuccess,
             TypeName = result.Target,
             Code = result.Code,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"Decompile failed for '{typeName}': {result.ErrorMessage}"
         };
     }
 
@@ -60,7 +60,7 @@ public sealed class AnalysisTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new DecompileMethodResult { Success = false, Error = "No backend available" };
+            return new DecompileMethodResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var result = await backend.DecompileMethodAsync(mvid ?? "", typeName, methodName, language, preferOriginalSource);
@@ -70,7 +70,7 @@ public sealed class AnalysisTools
             TypeName = result.Target,
             MethodName = methodName,
             Code = result.Code,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"Decompile failed for '{typeName}.{methodName}': {result.ErrorMessage}"
         };
     }
 
@@ -87,7 +87,7 @@ public sealed class AnalysisTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new FindReferencesResult { Success = false, Error = "No backend available", References = Array.Empty<ReferenceDto>() };
+            return new FindReferencesResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled.", References = Array.Empty<ReferenceDto>() };
         }
 
         var result = await backend.FindReferencesToTypeAsync(mvid ?? "", typeName, limit);
@@ -103,7 +103,7 @@ public sealed class AnalysisTools
                 ReferenceKind = r.Kind.ToString()
             }).ToArray() ?? Array.Empty<ReferenceDto>(),
             TotalCount = result.TotalCount,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"FindTypeReferences failed for '{typeName}': {result.ErrorMessage}"
         };
     }
 
@@ -121,7 +121,7 @@ public sealed class AnalysisTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new FindReferencesResult { Success = false, Error = "No backend available", References = Array.Empty<ReferenceDto>() };
+            return new FindReferencesResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled.", References = Array.Empty<ReferenceDto>() };
         }
 
         var result = await backend.FindCallsToMethodAsync(mvid ?? "", typeName, methodName, limit);
@@ -137,7 +137,7 @@ public sealed class AnalysisTools
                 ReferenceKind = r.Kind.ToString()
             }).ToArray() ?? Array.Empty<ReferenceDto>(),
             TotalCount = result.TotalCount,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"FindMethodCalls failed for '{typeName}.{methodName}': {result.ErrorMessage}"
         };
     }
 
@@ -157,7 +157,7 @@ public sealed class AnalysisTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new CallGraphToolResult { Success = false, Error = "No backend available" };
+            return new CallGraphToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var result = await backend.BuildCallGraphAsync(mvid ?? "", typeName, methodName, direction, maxDepth, maxNodes);
@@ -171,7 +171,7 @@ public sealed class AnalysisTools
                 Methods = l.Methods.ToArray()
             }).ToArray(),
             MaxDepthReached = result.MaxDepthReached,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"GetCallGraph failed for '{typeName}.{methodName}': {result.ErrorMessage}"
         };
     }
 
@@ -189,7 +189,7 @@ public sealed class AnalysisTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new CFGToolResult { Success = false, Error = "No backend available" };
+            return new CFGToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var result = await backend.BuildControlFlowGraphAsync(mvid ?? "", typeName, methodName, includeIL);
@@ -200,7 +200,7 @@ public sealed class AnalysisTools
             BlockCount = result.BlockCount,
             EdgeCount = result.EdgeCount,
             Mermaid = result.Mermaid,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"GetControlFlowGraph failed for '{typeName}.{methodName}': {result.ErrorMessage}"
         };
     }
     /// <summary>
@@ -214,7 +214,7 @@ public sealed class AnalysisTools
     {
         var backend = _registry.Get(backendId);
         if (backend == null)
-            return new TypeOutlineToolResult { Success = false, Error = "No backend available" };
+            return new TypeOutlineToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
 
         var result = await backend.GetTypeOutlineAsync(mvid ?? "", typeName);
         return new TypeOutlineToolResult
@@ -236,7 +236,7 @@ public sealed class AnalysisTools
                 IsVirtual = m.IsVirtual,
                 IsAbstract = m.IsAbstract
             }).ToArray(),
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"GetTypeOutline failed for '{typeName}': {result.ErrorMessage}"
         };
     }
 
@@ -254,7 +254,7 @@ public sealed class AnalysisTools
     {
         var backend = _registry.Get(backendId);
         if (backend == null)
-            return new ChunkingPlanToolResult { Success = false, Error = "No backend available" };
+            return new ChunkingPlanToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
 
         var result = await backend.PlanChunkingAsync(mvid ?? "", typeName, methodName, targetChunkSize, overlap);
         return new ChunkingPlanToolResult
@@ -264,7 +264,7 @@ public sealed class AnalysisTools
             TotalLines = result.TotalLines,
             AvgCharsPerLine = result.AvgCharsPerLine,
             TotalEstimatedChars = result.TotalEstimatedChars,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"PlanChunking failed for '{typeName}': {result.ErrorMessage}"
         };
     }
 
@@ -282,7 +282,7 @@ public sealed class AnalysisTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new CompareAssembliesToolResult { Success = false, Error = "No backend available" };
+            return new CompareAssembliesToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var result = await backend.CompareAssembliesAsync(leftMvid, rightMvid, namespaceFilter, includeUnchanged);
@@ -301,7 +301,7 @@ public sealed class AnalysisTools
                     DiffType = m.DiffType
                 }).ToArray()
             }).ToArray(),
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"CompareAssemblies failed (left={leftMvid}, right={rightMvid}): {result.ErrorMessage}"
         };
     }
 
@@ -318,7 +318,7 @@ public sealed class AnalysisTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new BatchDecompileToolResult { Success = false, Error = "No backend available" };
+            return new BatchDecompileToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         if (memberKeys.Length == 0)
@@ -341,7 +341,7 @@ public sealed class AnalysisTools
             TotalCharsReturned = result.TotalCharsReturned,
             Processed = result.Processed,
             Requested = result.Requested,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"BatchDecompile failed: {result.ErrorMessage}"
         };
     }
 }

@@ -93,7 +93,7 @@ public class SearchToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class SearchToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     [Fact]

@@ -78,7 +78,7 @@ public class ModificationToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class ModificationToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -228,7 +228,7 @@ public class ModificationToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -298,7 +298,7 @@ public class ModificationToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -349,7 +349,7 @@ public class ModificationToolsTests
         var result = await tools.GeneratePatchSkeleton("Any.Type", "AnyMethod");
 
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion

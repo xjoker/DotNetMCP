@@ -32,7 +32,7 @@ public sealed class ModificationTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new InjectionToolResult { Success = false, Error = "No backend available" };
+            return new InjectionToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var request = new InjectionRequest
@@ -50,7 +50,9 @@ public sealed class ModificationTools
         {
             Success = result.IsSuccess,
             Message = result.IsSuccess ? "Injection successful" : null,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : (result.ErrorCode != null
+                ? $"[{result.ErrorCode}] {result.ErrorMessage}"
+                : result.ErrorMessage)
         };
     }
 
@@ -67,7 +69,7 @@ public sealed class ModificationTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new InjectionToolResult { Success = false, Error = "No backend available" };
+            return new InjectionToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var request = new InjectionRequest
@@ -85,7 +87,9 @@ public sealed class ModificationTools
         {
             Success = result.IsSuccess,
             Message = result.IsSuccess ? "Method body replaced" : null,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : (result.ErrorCode != null
+                ? $"[{result.ErrorCode}] {result.ErrorMessage}"
+                : result.ErrorMessage)
         };
     }
 
@@ -103,7 +107,7 @@ public sealed class ModificationTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new AddTypeToolResult { Success = false, Error = "No backend available" };
+            return new AddTypeToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var request = new TypeCreationRequest
@@ -118,7 +122,9 @@ public sealed class ModificationTools
         {
             Success = result.IsSuccess,
             FullName = result.IsSuccess ? $"{@namespace}.{name}" : null,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : (result.ErrorCode != null
+                ? $"[{result.ErrorCode}] {result.ErrorMessage}"
+                : result.ErrorMessage)
         };
     }
 
@@ -134,7 +140,7 @@ public sealed class ModificationTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new SaveAssemblyToolResult { Success = false, Error = "No backend available" };
+            return new SaveAssemblyToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var result = await backend.SaveAssemblyAsync(mvid ?? "", outputPath);
@@ -142,7 +148,9 @@ public sealed class ModificationTools
         {
             Success = result.IsSuccess,
             Path = result.IsSuccess ? outputPath : null,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : (result.ErrorCode != null
+                ? $"[{result.ErrorCode}] {result.ErrorMessage}"
+                : result.ErrorMessage)
         };
     }
 
@@ -159,7 +167,7 @@ public sealed class ModificationTools
     {
         var backend = _registry.Get(backendId);
         if (backend == null)
-            return new PatchSkeletonToolResult { Success = false, Error = "No backend available" };
+            return new PatchSkeletonToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
 
         var kinds = patchKinds.Split(',').Select(k => k.Trim()).ToArray();
         var result = await backend.GeneratePatchSkeletonAsync(mvid ?? "", typeName, methodName, kinds);

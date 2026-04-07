@@ -31,7 +31,7 @@ public sealed class SearchTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new SearchTypesToolResult { Success = false, Error = "No backend available", Types = Array.Empty<TypeDto>() };
+            return new SearchTypesToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled.", Types = Array.Empty<TypeDto>() };
         }
 
         var result = await backend.SearchTypesAsync(mvid ?? "", keyword, namespaceFilter, limit);
@@ -48,7 +48,7 @@ public sealed class SearchTools
                 FieldCount = t.FieldCount
             }).ToArray() ?? Array.Empty<TypeDto>(),
             TotalCount = result.TotalCount,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"SearchTypes failed (keyword='{keyword}'): {result.ErrorMessage}"
         };
     }
 
@@ -66,7 +66,7 @@ public sealed class SearchTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new SearchStringsToolResult { Success = false, Error = "No backend available", Matches = Array.Empty<StringMatchDto>() };
+            return new SearchStringsToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled.", Matches = Array.Empty<StringMatchDto>() };
         }
 
         var result = await backend.SearchStringsAsync(mvid ?? "", query, mode, limit);
@@ -81,7 +81,7 @@ public sealed class SearchTools
                 ILOffset = m.ILOffset
             }).ToArray() ?? Array.Empty<StringMatchDto>(),
             TotalCount = result.TotalCount,
-            Error = result.ErrorMessage
+            Error = result.IsSuccess ? null : $"SearchStrings failed (query='{query}'): {result.ErrorMessage}"
         };
     }
 }

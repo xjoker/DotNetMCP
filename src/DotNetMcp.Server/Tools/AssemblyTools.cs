@@ -29,7 +29,7 @@ public sealed class AssemblyTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new LoadAssemblyResult { Success = false, Error = "No backend available" };
+            return new LoadAssemblyResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var result = await backend.LoadAssemblyAsync(path, searchPaths);
@@ -38,7 +38,9 @@ public sealed class AssemblyTools
             return new LoadAssemblyResult
             {
                 Success = false,
-                Error = result.ErrorMessage ?? "Failed to load assembly"
+                Error = result.ErrorCode.HasValue
+                    ? $"[{result.ErrorCode}] {result.ErrorMessage ?? "Failed to load assembly"}"
+                    : result.ErrorMessage ?? "Failed to load assembly"
             };
         }
 
@@ -61,7 +63,7 @@ public sealed class AssemblyTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new ListAssembliesResult { Success = false, Error = "No backend available", Assemblies = Array.Empty<AssemblyInfoDto>() };
+            return new ListAssembliesResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled.", Assemblies = Array.Empty<AssemblyInfoDto>() };
         }
 
         var assemblies = await backend.ListAssembliesAsync();
@@ -90,14 +92,14 @@ public sealed class AssemblyTools
         var backend = _registry.Get(backendId);
         if (backend == null)
         {
-            return new UnloadAssemblyResult { Success = false, Error = "No backend available" };
+            return new UnloadAssemblyResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
         }
 
         var success = await backend.UnloadAssemblyAsync(mvid);
         return new UnloadAssemblyResult
         {
             Success = success,
-            Error = success ? null : "Failed to unload assembly"
+            Error = success ? null : $"Assembly '{mvid}' not found. Use 'list_assemblies' to see loaded assemblies."
         };
     }
 }

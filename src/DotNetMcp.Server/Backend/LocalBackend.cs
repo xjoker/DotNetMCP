@@ -292,7 +292,11 @@ public class LocalBackend : IBackend
 
         var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
         if (type == null)
-            return Task.FromResult(TypeOutlineResult.Failure($"Type '{typeName}' not found"));
+        {
+            var suggestions = FindSimilarTypes(context, typeName);
+            var hint = suggestions.Count > 0 ? $" Similar types: {string.Join(", ", suggestions)}" : "";
+            return Task.FromResult(TypeOutlineResult.Failure($"Type '{typeName}' not found.{hint}"));
+        }
 
         var kind = type.IsInterface ? "Interface" : type.IsEnum ? "Enum" : type.IsValueType ? "Struct" : "Class";
         var accessibility = type.IsPublic || type.IsNestedPublic ? "Public"
@@ -376,7 +380,11 @@ public class LocalBackend : IBackend
 
         var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
         if (type == null)
-            return Task.FromResult(PatchSkeletonResult.Failure($"Type '{typeName}' not found"));
+        {
+            var suggestions = FindSimilarTypes(context, typeName);
+            var hint = suggestions.Count > 0 ? $" Similar types: {string.Join(", ", suggestions)}" : "";
+            return Task.FromResult(PatchSkeletonResult.Failure($"Type '{typeName}' not found.{hint}"));
+        }
 
         // 支持重载：methodName 可以是 "DoWork" 或 "DoWork(Int32,String)" 格式
         Mono.Cecil.MethodDefinition? method;
@@ -402,7 +410,11 @@ public class LocalBackend : IBackend
         }
 
         if (method == null)
-            return Task.FromResult(PatchSkeletonResult.Failure($"Method '{methodName}' not found in type '{typeName}'"));
+        {
+            var availableMethods = type.Methods.Select(m => m.Name).Distinct().Take(10).ToList();
+            var hint = availableMethods.Count > 0 ? $" Available methods: {string.Join(", ", availableMethods)}" : "";
+            return Task.FromResult(PatchSkeletonResult.Failure($"Method '{methodName}' not found in type '{typeName}'.{hint}"));
+        }
 
         var generator = new PatchSkeletonGenerator();
         return Task.FromResult(generator.Generate(method, patchKinds));
@@ -543,6 +555,18 @@ public class LocalBackend : IBackend
     private AssemblyContext? GetContext(string? mvid)
     {
         return _assemblyManager.Get(mvid);
+    }
+
+    private List<string> FindSimilarTypes(AssemblyContext context, string typeName, int maxSuggestions = 5)
+    {
+        var allTypes = context.Assembly?.MainModule.Types.Select(t => t.FullName).ToList() ?? new();
+        var simpleName = typeName.Contains('.') ? typeName[(typeName.LastIndexOf('.') + 1)..] : typeName;
+
+        return allTypes
+            .Where(t => t.Contains(simpleName, StringComparison.OrdinalIgnoreCase)
+                || (t.Contains('.') ? t[(t.LastIndexOf('.') + 1)..] : t).Contains(simpleName, StringComparison.OrdinalIgnoreCase))
+            .Take(maxSuggestions)
+            .ToList();
     }
 
     #endregion

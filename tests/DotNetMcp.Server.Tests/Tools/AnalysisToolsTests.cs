@@ -76,7 +76,7 @@ public class AnalysisToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("Type not found", result.Error);
+        Assert.Contains("Type not found", result.Error);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class AnalysisToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -130,7 +130,7 @@ public class AnalysisToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -188,7 +188,7 @@ public class AnalysisToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -258,7 +258,7 @@ public class AnalysisToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -299,7 +299,7 @@ public class AnalysisToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -403,7 +403,7 @@ public class AnalysisToolsTests
         var result = await tools.PlanChunking("Any.Type");
 
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -467,7 +467,7 @@ public class AnalysisToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
@@ -593,7 +593,7 @@ public class AnalysisToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal("No backend available", result.Error);
+        Assert.Contains("No backend available", result.Error);
     }
 
     #endregion
