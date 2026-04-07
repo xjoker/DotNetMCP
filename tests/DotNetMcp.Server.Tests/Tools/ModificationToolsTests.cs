@@ -1,6 +1,7 @@
 using DotNetMcp.Server.Backend;
 using DotNetMcp.Server.Tools;
 using DotNetMcp.Backend.Services;
+using DotNetMcp.Backend.Core.Analysis;
 
 namespace DotNetMcp.Server.Tests.Tools;
 
@@ -296,6 +297,57 @@ public class ModificationToolsTests
         var result = await tools.SaveAssembly("/any/path.dll");
 
         // Assert
+        Assert.False(result.Success);
+        Assert.Equal("No backend available", result.Error);
+    }
+
+    #endregion
+
+    #region generate_patch_skeleton 测试
+
+    [Fact]
+    public async Task GeneratePatchSkeleton_WithValidMethod_ReturnsCode()
+    {
+        // Arrange
+        var patchResult = PatchSkeletonResult.Success(
+            "using HarmonyLib;\n[HarmonyPatch]\npublic class MyPatch { }",
+            new List<string> { "Add HarmonyLib NuGet package" });
+
+        _mockBackend.Setup(b => b.GeneratePatchSkeletonAsync("", "MyNs.MyClass", "DoWork",
+            It.Is<string[]>(k => k.Contains("Prefix")), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(patchResult);
+
+        // Act
+        var result = await _tools.GeneratePatchSkeleton("MyNs.MyClass", "DoWork", "Prefix");
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Contains("HarmonyPatch", result.Code!);
+        Assert.NotEmpty(result.Notes!);
+    }
+
+    [Fact]
+    public async Task GeneratePatchSkeleton_MethodNotFound_ReturnsError()
+    {
+        _mockBackend.Setup(b => b.GeneratePatchSkeletonAsync("", "MyNs.MyClass", "Bad",
+            It.IsAny<string[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PatchSkeletonResult.Failure("Method 'Bad' not found"));
+
+        var result = await _tools.GeneratePatchSkeleton("MyNs.MyClass", "Bad");
+
+        Assert.False(result.Success);
+        Assert.Contains("not found", result.Error!);
+    }
+
+    [Fact]
+    public async Task GeneratePatchSkeleton_NoBackend_ReturnsError()
+    {
+        var registry = new Mock<IBackendRegistry>();
+        registry.Setup(r => r.Get(It.IsAny<string?>())).Returns((IBackend?)null);
+        var tools = new ModificationTools(registry.Object);
+
+        var result = await tools.GeneratePatchSkeleton("Any.Type", "AnyMethod");
+
         Assert.False(result.Success);
         Assert.Equal("No backend available", result.Error);
     }

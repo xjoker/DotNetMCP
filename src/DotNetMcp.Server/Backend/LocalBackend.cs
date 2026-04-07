@@ -356,6 +356,24 @@ public class LocalBackend : IBackend
         return Task.FromResult(result);
     }
 
+    public Task<PatchSkeletonResult> GeneratePatchSkeletonAsync(string mvid, string typeName, string methodName, string[] patchKinds, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(PatchSkeletonResult.Failure($"Assembly '{mvid}' not found"));
+
+        var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
+        if (type == null)
+            return Task.FromResult(PatchSkeletonResult.Failure($"Type '{typeName}' not found"));
+
+        var method = type.Methods.FirstOrDefault(m => m.Name == methodName);
+        if (method == null)
+            return Task.FromResult(PatchSkeletonResult.Failure($"Method '{methodName}' not found in type '{typeName}'"));
+
+        var generator = new PatchSkeletonGenerator();
+        return Task.FromResult(generator.Generate(method, patchKinds));
+    }
+
     public Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
     {
         var leftContext = GetContext(leftMvid);

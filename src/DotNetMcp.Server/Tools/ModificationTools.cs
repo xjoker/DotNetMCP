@@ -2,6 +2,7 @@ using System.ComponentModel;
 using ModelContextProtocol.Server;
 using DotNetMcp.Server.Backend;
 using DotNetMcp.Backend.Services;
+using DotNetMcp.Backend.Core.Analysis;
 
 namespace DotNetMcp.Server.Tools;
 
@@ -144,6 +145,40 @@ public sealed class ModificationTools
             Error = result.ErrorMessage
         };
     }
+
+    /// <summary>
+    /// 生成 Harmony Patch 骨架代码
+    /// </summary>
+    [McpServerTool(Name = "generate_patch_skeleton"), Description("Generate a Harmony patch skeleton for a method. Produces ready-to-use C# code with correct parameter types for Prefix, Postfix, Transpiler, or Finalizer patches. Useful for game modding (Unity, RimWorld, etc.).")]
+    public async Task<PatchSkeletonToolResult> GeneratePatchSkeleton(
+        [Description("Full name of the type containing the method")] string typeName,
+        [Description("Name of the method to patch")] string methodName,
+        [Description("Comma-separated patch kinds: 'Prefix', 'Postfix', 'Transpiler', 'Finalizer' (default: 'Prefix,Postfix')")] string patchKinds = "Prefix,Postfix",
+        [Description("MVID of the assembly. Omit to use the default loaded assembly.")] string? mvid = null,
+        [Description("Optional backend ID")] string? backendId = null)
+    {
+        var backend = _registry.Get(backendId);
+        if (backend == null)
+            return new PatchSkeletonToolResult { Success = false, Error = "No backend available" };
+
+        var kinds = patchKinds.Split(',').Select(k => k.Trim()).ToArray();
+        var result = await backend.GeneratePatchSkeletonAsync(mvid ?? "", typeName, methodName, kinds);
+        return new PatchSkeletonToolResult
+        {
+            Success = result.IsSuccess,
+            Code = result.Code,
+            Notes = result.Notes.ToArray(),
+            Error = result.ErrorMessage
+        };
+    }
+}
+
+public record PatchSkeletonToolResult
+{
+    public bool Success { get; init; }
+    public string? Code { get; init; }
+    public string[]? Notes { get; init; }
+    public string? Error { get; init; }
 }
 
 public record InstructionDto

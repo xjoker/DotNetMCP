@@ -328,6 +328,20 @@ public class RemoteBackend : IBackend
         }
     }
 
+    public async Task<PatchSkeletonResult> GeneratePatchSkeletonAsync(string mvid, string typeName, string methodName, string[] patchKinds, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Post, $"/api/analysis/{mvid}/patch-skeleton", new { typeName, methodName, patchKinds });
+        try
+        {
+            var result = await SendAsync<PatchSkeletonResult>(httpRequest, cancellationToken);
+            return result ?? PatchSkeletonResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return PatchSkeletonResult.Failure(ex.Message);
+        }
+    }
+
     public async Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
     {
         var url = $"/api/analysis/compare?leftMvid={Uri.EscapeDataString(leftMvid)}&rightMvid={Uri.EscapeDataString(rightMvid)}&includeUnchanged={includeUnchanged}";
