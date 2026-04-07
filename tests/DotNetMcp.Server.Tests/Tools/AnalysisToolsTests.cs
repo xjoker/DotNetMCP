@@ -32,7 +32,7 @@ public class AnalysisToolsTests
         var typeName = "MyNamespace.MyClass";
         var expectedCode = "public class MyClass { }";
 
-        _mockBackend.Setup(b => b.DecompileTypeAsync("", typeName, "csharp", It.IsAny<CancellationToken>()))
+        _mockBackend.Setup(b => b.DecompileTypeAsync("", typeName, "csharp", false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(DecompileResult.Success(expectedCode, typeName));
 
         // Act
@@ -51,7 +51,7 @@ public class AnalysisToolsTests
         var typeName = "MyNamespace.MyClass";
         var expectedIL = ".class public MyClass { }";
 
-        _mockBackend.Setup(b => b.DecompileTypeAsync("", typeName, "il", It.IsAny<CancellationToken>()))
+        _mockBackend.Setup(b => b.DecompileTypeAsync("", typeName, "il", false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(DecompileResult.Success(expectedIL, typeName));
 
         // Act
@@ -68,7 +68,7 @@ public class AnalysisToolsTests
         // Arrange
         var typeName = "NonExistent.Type";
 
-        _mockBackend.Setup(b => b.DecompileTypeAsync("", typeName, "csharp", It.IsAny<CancellationToken>()))
+        _mockBackend.Setup(b => b.DecompileTypeAsync("", typeName, "csharp", false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(DecompileResult.Failure("Type not found"));
 
         // Act
@@ -106,7 +106,7 @@ public class AnalysisToolsTests
         var methodName = "MyMethod";
         var expectedCode = "public void MyMethod() { }";
 
-        _mockBackend.Setup(b => b.DecompileMethodAsync("", typeName, methodName, "csharp", It.IsAny<CancellationToken>()))
+        _mockBackend.Setup(b => b.DecompileMethodAsync("", typeName, methodName, "csharp", false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(DecompileResult.Success(expectedCode, typeName));
 
         // Act

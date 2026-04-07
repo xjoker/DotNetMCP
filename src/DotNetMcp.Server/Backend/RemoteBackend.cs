@@ -164,9 +164,9 @@ public class RemoteBackend : IBackend
 
     #region 分析操作
 
-    public async Task<DecompileResult> DecompileTypeAsync(string mvid, string typeName, string language = "csharp", CancellationToken cancellationToken = default)
+    public async Task<DecompileResult> DecompileTypeAsync(string mvid, string typeName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/decompile/type/{Uri.EscapeDataString(typeName)}?language={language}");
+        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/decompile/type/{Uri.EscapeDataString(typeName)}?language={language}&preferOriginalSource={preferOriginalSource}");
         try
         {
             var result = await SendAsync<DecompileResult>(request, cancellationToken);
@@ -178,9 +178,9 @@ public class RemoteBackend : IBackend
         }
     }
 
-    public async Task<DecompileResult> DecompileMethodAsync(string mvid, string typeName, string methodName, string language = "csharp", CancellationToken cancellationToken = default)
+    public async Task<DecompileResult> DecompileMethodAsync(string mvid, string typeName, string methodName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/decompile/method/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?language={language}");
+        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/decompile/method/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?language={language}&preferOriginalSource={preferOriginalSource}");
         try
         {
             var result = await SendAsync<DecompileResult>(request, cancellationToken);

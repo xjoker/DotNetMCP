@@ -45,8 +45,8 @@ public interface IBackend
     Task<IReadOnlyList<AssemblyInfo>> ListAssembliesAsync(CancellationToken cancellationToken = default);
 
     // 分析操作
-    Task<DecompileResult> DecompileTypeAsync(string mvid, string typeName, string language = "csharp", CancellationToken cancellationToken = default);
-    Task<DecompileResult> DecompileMethodAsync(string mvid, string typeName, string methodName, string language = "csharp", CancellationToken cancellationToken = default);
+    Task<DecompileResult> DecompileTypeAsync(string mvid, string typeName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default);
+    Task<DecompileResult> DecompileMethodAsync(string mvid, string typeName, string methodName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default);
     Task<SearchTypesResult> SearchTypesAsync(string mvid, string keyword, string? namespaceFilter = null, int limit = 50, CancellationToken cancellationToken = default);
     Task<SearchStringsResult> SearchStringsAsync(string mvid, string query, string mode = "contains", int limit = 50, CancellationToken cancellationToken = default);
     Task<XRefResult> FindReferencesToTypeAsync(string mvid, string typeName, int limit = 50, CancellationToken cancellationToken = default);

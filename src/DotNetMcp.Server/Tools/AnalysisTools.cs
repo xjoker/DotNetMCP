@@ -21,11 +21,12 @@ public sealed class AnalysisTools
     /// <summary>
     /// 反编译类型为 C# 源码
     /// </summary>
-    [McpServerTool(Name = "decompile_type"), Description("Decompile a type to readable source code. Use language='csharp' for high-level C# source, 'il' for low-level IL disassembly. Returns complete type definition including all members, properties, and nested types.")]
+    [McpServerTool(Name = "decompile_type"), Description("Decompile a type to readable source code. Use language='csharp' for high-level C# source, 'il' for low-level IL disassembly. Returns complete type definition including all members, properties, and nested types. Set preferOriginalSource=true to retrieve original source from PDB when available.")]
     public async Task<DecompileTypeResult> DecompileType(
         [Description("Full name of the type to decompile (e.g., 'MyNamespace.MyClass' or 'System.String')")] string typeName,
         [Description("MVID of the assembly. Omit to use the default loaded assembly.")] string? mvid = null,
         [Description("Output language: 'csharp' (readable source) or 'il' (low-level IL instructions)")] string language = "csharp",
+        [Description("Prefer original source from PDB (embedded, local file, or SourceLink) over decompilation")] bool preferOriginalSource = false,
         [Description("Optional backend ID")] string? backendId = null)
     {
         var backend = _registry.Get(backendId);
@@ -34,7 +35,7 @@ public sealed class AnalysisTools
             return new DecompileTypeResult { Success = false, Error = "No backend available" };
         }
 
-        var result = await backend.DecompileTypeAsync(mvid ?? "", typeName, language);
+        var result = await backend.DecompileTypeAsync(mvid ?? "", typeName, language, preferOriginalSource);
         return new DecompileTypeResult
         {
             Success = result.IsSuccess,
@@ -47,12 +48,13 @@ public sealed class AnalysisTools
     /// <summary>
     /// 反编译方法
     /// </summary>
-    [McpServerTool(Name = "decompile_method"), Description("Decompile a single method to source code. Faster than decompile_type for large classes when you only need one method. Returns method signature and body.")]
+    [McpServerTool(Name = "decompile_method"), Description("Decompile a single method to source code. Faster than decompile_type for large classes when you only need one method. Returns method signature and body. Set preferOriginalSource=true to retrieve original source from PDB when available.")]
     public async Task<DecompileMethodResult> DecompileMethod(
         [Description("Full name of the type containing the method (e.g., 'MyNamespace.MyClass')")] string typeName,
         [Description("Name of the method to decompile (e.g., 'DoWork' or 'get_PropertyName')")] string methodName,
         [Description("MVID of the assembly. Omit to use the default loaded assembly.")] string? mvid = null,
         [Description("Output language: 'csharp' (readable source) or 'il' (low-level IL instructions)")] string language = "csharp",
+        [Description("Prefer original source from PDB (embedded, local file, or SourceLink) over decompilation")] bool preferOriginalSource = false,
         [Description("Optional backend ID")] string? backendId = null)
     {
         var backend = _registry.Get(backendId);
@@ -61,7 +63,7 @@ public sealed class AnalysisTools
             return new DecompileMethodResult { Success = false, Error = "No backend available" };
         }
 
-        var result = await backend.DecompileMethodAsync(mvid ?? "", typeName, methodName, language);
+        var result = await backend.DecompileMethodAsync(mvid ?? "", typeName, methodName, language, preferOriginalSource);
         return new DecompileMethodResult
         {
             Success = result.IsSuccess,

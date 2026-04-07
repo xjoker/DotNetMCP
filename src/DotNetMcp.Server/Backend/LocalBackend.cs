@@ -76,7 +76,7 @@ public class LocalBackend : IBackend
 
     #region 分析操作
 
-    public Task<DecompileResult> DecompileTypeAsync(string mvid, string typeName, string language = "csharp", CancellationToken cancellationToken = default)
+    public Task<DecompileResult> DecompileTypeAsync(string mvid, string typeName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default)
     {
         var context = GetContext(mvid);
         if (context == null)
@@ -84,15 +84,35 @@ public class LocalBackend : IBackend
             return Task.FromResult(DecompileResult.Failure($"Assembly '{mvid}' not found"));
         }
 
+        if (preferOriginalSource && language != "il" && context.AssemblyPath != null)
+        {
+            var resolver = new OriginalSourceResolver();
+            var source = resolver.TryResolveType(context.AssemblyPath, typeName);
+            if (source != null)
+            {
+                return Task.FromResult(DecompileResult.Success(source.Code, typeName));
+            }
+        }
+
         return Task.FromResult(_analysisService.DecompileType(context, typeName, language));
     }
 
-    public Task<DecompileResult> DecompileMethodAsync(string mvid, string typeName, string methodName, string language = "csharp", CancellationToken cancellationToken = default)
+    public Task<DecompileResult> DecompileMethodAsync(string mvid, string typeName, string methodName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default)
     {
         var context = GetContext(mvid);
         if (context == null)
         {
             return Task.FromResult(DecompileResult.Failure($"Assembly '{mvid}' not found"));
+        }
+
+        if (preferOriginalSource && language != "il" && context.AssemblyPath != null)
+        {
+            var resolver = new OriginalSourceResolver();
+            var source = resolver.TryResolveType(context.AssemblyPath, typeName);
+            if (source != null)
+            {
+                return Task.FromResult(DecompileResult.Success(source.Code, $"{typeName}.{methodName}"));
+            }
         }
 
         return Task.FromResult(_analysisService.DecompileMethod(context, typeName, methodName, language));
