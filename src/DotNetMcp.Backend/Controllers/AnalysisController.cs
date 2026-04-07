@@ -582,6 +582,288 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 类型大纲
+
+    /// <summary>
+    /// 获取类型元数据大纲（无需反编译）
+    /// </summary>
+    [HttpGet("outline/{typeName}")]
+    public IActionResult GetTypeOutline(string typeName, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+
+        var decodedName = Uri.UnescapeDataString(typeName);
+        var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == decodedName);
+        if (type == null)
+            return BadRequest(new { success = false, error_code = "TYPE_NOT_FOUND", message = $"Type '{decodedName}' not found" });
+
+        var kind = type.IsInterface ? "Interface" : type.IsEnum ? "Enum" : type.IsValueType ? "Struct" : "Class";
+        var accessibility = type.IsPublic || type.IsNestedPublic ? "Public"
+            : type.IsNestedFamily ? "Protected"
+            : type.IsNestedAssembly ? "Internal"
+            : "Private";
+
+        var members = new List<object>();
+
+        foreach (var method in type.Methods)
+        {
+            var paramStr = string.Join(", ", method.Parameters.Select(p => $"{p.ParameterType.Name} {p.Name}"));
+            members.Add(new
+            {
+                kind = method.IsConstructor ? "Constructor" : "Method",
+                name = method.Name,
+                signature = $"{method.ReturnType.Name} {method.Name}({paramStr})",
+                accessibility = method.IsPublic ? "Public" : method.IsFamily ? "Protected" : method.IsAssembly ? "Internal" : "Private",
+                isStatic = method.IsStatic,
+                isVirtual = method.IsVirtual,
+                isAbstract = method.IsAbstract
+            });
+        }
+
+        foreach (var field in type.Fields)
+        {
+            members.Add(new
+            {
+                kind = "Field",
+                name = field.Name,
+                signature = $"{field.FieldType.Name} {field.Name}",
+                accessibility = field.IsPublic ? "Public" : field.IsFamily ? "Protected" : field.IsAssembly ? "Internal" : "Private",
+                isStatic = field.IsStatic,
+                isVirtual = false,
+                isAbstract = false
+            });
+        }
+
+        foreach (var prop in type.Properties)
+        {
+            var getter = prop.GetMethod;
+            var setter = prop.SetMethod;
+            var accessMethod = getter ?? setter;
+            members.Add(new
+            {
+                kind = "Property",
+                name = prop.Name,
+                signature = $"{prop.PropertyType.Name} {prop.Name} {{ {(getter != null ? "get; " : "")}{(setter != null ? "set; " : "")}}}",
+                accessibility = accessMethod?.IsPublic == true ? "Public" : accessMethod?.IsFamily == true ? "Protected" : "Private",
+                isStatic = accessMethod?.IsStatic ?? false,
+                isVirtual = false,
+                isAbstract = false
+            });
+        }
+
+        foreach (var evt in type.Events)
+        {
+            members.Add(new
+            {
+                kind = "Event",
+                name = evt.Name,
+                signature = $"{evt.EventType.Name} {evt.Name}",
+                accessibility = evt.AddMethod?.IsPublic == true ? "Public" : "Private",
+                isStatic = false,
+                isVirtual = false,
+                isAbstract = false
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                typeName = type.FullName,
+                kind,
+                @namespace = type.Namespace,
+                accessibility,
+                baseType = type.BaseType?.FullName,
+                interfaces = type.Interfaces.Select(i => i.InterfaceType.FullName).ToList(),
+                members
+            }
+        });
+    }
+
+    #endregion
+
+    #region 分块规划
+
+    /// <summary>
+    /// 规划 LLM 友好的源码分块方案
+    /// </summary>
+    [HttpGet("plan-chunking")]
+    public IActionResult PlanChunking([FromQuery] string typeName, [FromQuery] string? methodName = null,
+        [FromQuery] int targetChunkSize = 6000, [FromQuery] int overlap = 2, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+
+        var decompileResult = methodName != null
+            ? _analysisService.DecompileMethod(context, typeName, methodName)
+            : _analysisService.DecompileType(context, typeName);
+
+        if (!decompileResult.IsSuccess || string.IsNullOrEmpty(decompileResult.Code))
+            return BadRequest(new { success = false, error_code = "DECOMPILE_FAILED", message = decompileResult.ErrorMessage ?? "Decompilation failed" });
+
+        var lines = decompileResult.Code.Split('\n');
+        var totalLines = lines.Length;
+
+        if (totalLines == 0)
+            return Ok(new { success = true, data = new { chunks = Array.Empty<object>(), totalLines = 0, avgCharsPerLine = 0 } });
+
+        var sampleSize = Math.Min(totalLines, 20);
+        var sampleChars = lines.Take(sampleSize).Sum(l => l.Length);
+        var avgCharsPerLine = Math.Max(1, sampleChars / sampleSize);
+        var linesPerChunk = Math.Max(1, targetChunkSize / avgCharsPerLine);
+
+        if (overlap >= linesPerChunk)
+            return BadRequest(new { success = false, error_code = "INVALID_PARAMS", message = $"Overlap ({overlap}) must be less than lines per chunk ({linesPerChunk})" });
+
+        var chunks = new List<object>();
+        var currentStart = 1;
+
+        while (currentStart <= totalLines)
+        {
+            var currentEnd = Math.Min(currentStart + linesPerChunk - 1, totalLines);
+            chunks.Add(new { startLine = currentStart, endLine = currentEnd, estimatedChars = (currentEnd - currentStart + 1) * avgCharsPerLine });
+
+            if (currentEnd >= totalLines) break;
+            var nextStart = currentEnd + 1 - overlap;
+            if (nextStart <= currentStart) nextStart = currentStart + 1;
+            currentStart = nextStart;
+        }
+
+        return Ok(new { success = true, data = new { chunks, totalLines, avgCharsPerLine } });
+    }
+
+    #endregion
+
+    #region 程序集对比
+
+    /// <summary>
+    /// 对比两个程序集的结构差异
+    /// </summary>
+    [HttpGet("compare")]
+    public IActionResult CompareAssemblies([FromQuery] string leftMvid, [FromQuery] string rightMvid,
+        [FromQuery] string? namespaceFilter = null, [FromQuery] bool includeUnchanged = false)
+    {
+        var leftContext = _assemblyManager.Get(leftMvid);
+        var rightContext = _assemblyManager.Get(rightMvid);
+
+        if (leftContext == null)
+            return BadRequest(new { success = false, error_code = "ASSEMBLY_NOT_FOUND", message = $"Left assembly '{leftMvid}' not found" });
+        if (rightContext == null)
+            return BadRequest(new { success = false, error_code = "ASSEMBLY_NOT_FOUND", message = $"Right assembly '{rightMvid}' not found" });
+        if (leftContext.Assembly == null || rightContext.Assembly == null)
+            return BadRequest(new { success = false, error_code = "ASSEMBLY_NOT_LOADED", message = "Assembly not loaded" });
+
+        var comparator = new DotNetMcp.Backend.Core.Modification.DiffComparator();
+        var diff = comparator.CompareAssemblies(leftContext.Assembly, rightContext.Assembly);
+
+        var summary = new { added = 0, removed = 0, modified = 0, unchanged = 0 };
+        int added = 0, removed = 0, modified = 0, unchanged = 0;
+        var items = new List<object>();
+
+        foreach (var typeDiff in diff.TypeDiffs)
+        {
+            if (namespaceFilter != null)
+            {
+                var ns = typeDiff.TypeName.Contains('.') ? typeDiff.TypeName[..typeDiff.TypeName.LastIndexOf('.')] : "";
+                if (!ns.StartsWith(namespaceFilter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+            }
+
+            switch (typeDiff.DiffType)
+            {
+                case DotNetMcp.Backend.Core.Modification.DiffType.Added: added++; break;
+                case DotNetMcp.Backend.Core.Modification.DiffType.Removed: removed++; break;
+                case DotNetMcp.Backend.Core.Modification.DiffType.Modified: modified++; break;
+                default: unchanged++; break;
+            }
+
+            if (!includeUnchanged && typeDiff.DiffType == DotNetMcp.Backend.Core.Modification.DiffType.Unchanged)
+                continue;
+
+            items.Add(new
+            {
+                typeName = typeDiff.TypeName,
+                diffType = typeDiff.DiffType.ToString(),
+                memberDiffs = typeDiff.MemberDiffs.Select(m => new
+                {
+                    name = m.MemberName,
+                    memberType = m.MemberType,
+                    diffType = m.DiffType.ToString()
+                }).ToList()
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                summary = new { added, removed, modified, unchanged },
+                typeDiffs = items
+            }
+        });
+    }
+
+    #endregion
+
+    #region Patch 骨架生成
+
+    /// <summary>
+    /// 生成 Harmony Patch 骨架代码
+    /// </summary>
+    [HttpPost("patch-skeleton")]
+    public IActionResult GeneratePatchSkeleton([FromBody] PatchSkeletonRequest request, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid ?? request.Mvid);
+        if (context == null)
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+
+        var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == request.TypeName);
+        if (type == null)
+            return BadRequest(new { success = false, error_code = "TYPE_NOT_FOUND", message = $"Type '{request.TypeName}' not found" });
+
+        Mono.Cecil.MethodDefinition? method;
+        var methodName = request.MethodName;
+
+        if (methodName.Contains('('))
+        {
+            var nameOnly = methodName[..methodName.IndexOf('(')];
+            var paramsPart = methodName[(methodName.IndexOf('(') + 1)..].TrimEnd(')');
+            var paramTypes = paramsPart.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToArray();
+            method = type.Methods.FirstOrDefault(m => m.Name == nameOnly && m.Parameters.Count == paramTypes.Length
+                && m.Parameters.Select((p, i) => p.ParameterType.Name == paramTypes[i] || p.ParameterType.FullName == paramTypes[i]).All(x => x));
+        }
+        else
+        {
+            var candidates = type.Methods.Where(m => m.Name == methodName).ToList();
+            if (candidates.Count > 1)
+            {
+                var overloads = string.Join(", ", candidates.Select(m =>
+                    $"{m.Name}({string.Join(", ", m.Parameters.Select(p => p.ParameterType.Name))})"));
+                return BadRequest(new { success = false, error_code = "AMBIGUOUS_METHOD", message = $"Method '{methodName}' is overloaded. Specify parameters: {overloads}" });
+            }
+            method = candidates.FirstOrDefault();
+        }
+
+        if (method == null)
+            return BadRequest(new { success = false, error_code = "METHOD_NOT_FOUND", message = $"Method '{methodName}' not found in type '{request.TypeName}'" });
+
+        var generator = new PatchSkeletonGenerator();
+        var patchKinds = request.PatchKinds ?? new[] { "Prefix", "Postfix" };
+        var result = generator.Generate(method, patchKinds);
+
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error_code = "GENERATION_FAILED", message = result.ErrorMessage });
+
+        return Ok(new { success = true, data = new { code = result.Code, notes = result.Notes } });
+    }
+
+    #endregion
+
     #region 批量反编译
 
     /// <summary>
@@ -688,6 +970,14 @@ public class BatchDecompileRequest
 {
     public List<string>? MemberKeys { get; set; }
     public int? MaxTotalChars { get; set; }
+    public string? Mvid { get; set; }
+}
+
+public class PatchSkeletonRequest
+{
+    public required string TypeName { get; set; }
+    public required string MethodName { get; set; }
+    public string[]? PatchKinds { get; set; }
     public string? Mvid { get; set; }
 }
 

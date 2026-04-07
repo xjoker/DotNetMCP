@@ -42,7 +42,7 @@ public class RemoteBackend : IBackend
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            var response = await _httpClient.GetAsync("/api/instance/health", cts.Token);
+            var response = await _httpClient.GetAsync("/instance/health", cts.Token);
             _isHealthy = response.IsSuccessStatusCode;
             _lastHealthCheck = DateTime.UtcNow;
 
@@ -102,7 +102,7 @@ public class RemoteBackend : IBackend
 
     public async Task<AssemblyLoadResult> LoadAssemblyAsync(string path, IEnumerable<string>? searchPaths = null, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Post, "/api/assembly/load", new { path, search_paths = searchPaths?.ToList() });
+        var request = CreateRequest(HttpMethod.Post, "/assembly/load", new { path, search_paths = searchPaths?.ToList() });
         try
         {
             var response = await SendAsync<RemoteAssemblyLoadResponse>(request, cancellationToken);
@@ -124,7 +124,7 @@ public class RemoteBackend : IBackend
 
     public async Task<bool> UnloadAssemblyAsync(string mvid, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Delete, $"/api/assembly/{mvid}");
+        var request = CreateRequest(HttpMethod.Delete, $"/instance/{mvid}");
         try
         {
             var response = await _httpClient.SendAsync(request, cancellationToken);
@@ -138,7 +138,7 @@ public class RemoteBackend : IBackend
 
     public async Task<IReadOnlyList<AssemblyInfo>> ListAssembliesAsync(CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, "/api/assembly");
+        var request = CreateRequest(HttpMethod.Get, "/instance/list");
         try
         {
             var response = await SendAsync<RemoteAssemblyListResponse>(request, cancellationToken);
@@ -166,7 +166,7 @@ public class RemoteBackend : IBackend
 
     public async Task<DecompileResult> DecompileTypeAsync(string mvid, string typeName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/decompile/type/{Uri.EscapeDataString(typeName)}?language={language}&preferOriginalSource={preferOriginalSource}");
+        var request = CreateRequest(HttpMethod.Get, $"/analysis/type/{Uri.EscapeDataString(typeName)}/source?language={language}&mvid={mvid}&preferOriginalSource={preferOriginalSource}");
         try
         {
             var result = await SendAsync<DecompileResult>(request, cancellationToken);
@@ -180,7 +180,7 @@ public class RemoteBackend : IBackend
 
     public async Task<DecompileResult> DecompileMethodAsync(string mvid, string typeName, string methodName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/decompile/method/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?language={language}&preferOriginalSource={preferOriginalSource}");
+        var request = CreateRequest(HttpMethod.Get, $"/analysis/type/{Uri.EscapeDataString(typeName)}/method/{Uri.EscapeDataString(methodName)}?language={language}&mvid={mvid}&preferOriginalSource={preferOriginalSource}");
         try
         {
             var result = await SendAsync<DecompileResult>(request, cancellationToken);
@@ -194,7 +194,7 @@ public class RemoteBackend : IBackend
 
     public async Task<SearchTypesResult> SearchTypesAsync(string mvid, string keyword, string? namespaceFilter = null, int limit = 50, CancellationToken cancellationToken = default)
     {
-        var url = $"/api/analysis/{mvid}/search/types?keyword={Uri.EscapeDataString(keyword)}&limit={limit}";
+        var url = $"/analysis/search/types?keyword={Uri.EscapeDataString(keyword)}&limit={limit}&mvid={mvid}";
         if (namespaceFilter != null) url += $"&namespace={Uri.EscapeDataString(namespaceFilter)}";
 
         var request = CreateRequest(HttpMethod.Get, url);
@@ -211,7 +211,7 @@ public class RemoteBackend : IBackend
 
     public async Task<SearchStringsResult> SearchStringsAsync(string mvid, string query, string mode = "contains", int limit = 50, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/search/strings?query={Uri.EscapeDataString(query)}&mode={mode}&limit={limit}");
+        var request = CreateRequest(HttpMethod.Get, $"/analysis/search/strings?query={Uri.EscapeDataString(query)}&mode={mode}&limit={limit}&mvid={mvid}");
         try
         {
             var result = await SendAsync<SearchStringsResult>(request, cancellationToken);
@@ -225,7 +225,7 @@ public class RemoteBackend : IBackend
 
     public async Task<XRefResult> FindReferencesToTypeAsync(string mvid, string typeName, int limit = 50, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/xref/type/{Uri.EscapeDataString(typeName)}?limit={limit}");
+        var request = CreateRequest(HttpMethod.Get, $"/analysis/xrefs/type/{Uri.EscapeDataString(typeName)}?limit={limit}&mvid={mvid}");
         try
         {
             var result = await SendAsync<XRefResult>(request, cancellationToken);
@@ -239,7 +239,7 @@ public class RemoteBackend : IBackend
 
     public async Task<XRefResult> FindCallsToMethodAsync(string mvid, string typeName, string methodName, int limit = 50, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/xref/method/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?limit={limit}");
+        var request = CreateRequest(HttpMethod.Get, $"/analysis/xrefs/method/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?limit={limit}&mvid={mvid}");
         try
         {
             var result = await SendAsync<XRefResult>(request, cancellationToken);
@@ -253,7 +253,7 @@ public class RemoteBackend : IBackend
 
     public async Task<CallGraphResult> BuildCallGraphAsync(string mvid, string typeName, string methodName, string direction = "callees", int maxDepth = 3, int maxNodes = 100, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/callgraph/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?direction={direction}&maxDepth={maxDepth}&maxNodes={maxNodes}");
+        var request = CreateRequest(HttpMethod.Get, $"/analysis/callgraph/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?direction={direction}&max_depth={maxDepth}&max_nodes={maxNodes}&mvid={mvid}");
         try
         {
             var result = await SendAsync<CallGraphResult>(request, cancellationToken);
@@ -267,7 +267,7 @@ public class RemoteBackend : IBackend
 
     public async Task<CFGResult> BuildControlFlowGraphAsync(string mvid, string typeName, string methodName, bool includeIL = false, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/cfg/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?includeIL={includeIL}");
+        var request = CreateRequest(HttpMethod.Get, $"/analysis/cfg/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?include_il={includeIL}&mvid={mvid}");
         try
         {
             var result = await SendAsync<CFGResult>(request, cancellationToken);
@@ -285,7 +285,7 @@ public class RemoteBackend : IBackend
 
     public async Task<BatchDecompileResult> BatchDecompileAsync(string mvid, string[] memberKeys, int maxTotalChars = 200000, CancellationToken cancellationToken = default)
     {
-        var httpRequest = CreateRequest(HttpMethod.Post, $"/api/analysis/{mvid}/batch-decompile", new { memberKeys, maxTotalChars });
+        var httpRequest = CreateRequest(HttpMethod.Post, $"/analysis/batch-decompile?mvid={mvid}", new { memberKeys, maxTotalChars });
         try
         {
             var result = await SendAsync<BatchDecompileResult>(httpRequest, cancellationToken);
@@ -299,7 +299,7 @@ public class RemoteBackend : IBackend
 
     public async Task<ChunkingPlanResult> PlanChunkingAsync(string mvid, string typeName, string? methodName = null, int targetChunkSize = 6000, int overlap = 2, CancellationToken cancellationToken = default)
     {
-        var url = $"/api/analysis/{mvid}/plan-chunking?typeName={Uri.EscapeDataString(typeName)}&targetChunkSize={targetChunkSize}&overlap={overlap}";
+        var url = $"/analysis/plan-chunking?typeName={Uri.EscapeDataString(typeName)}&targetChunkSize={targetChunkSize}&overlap={overlap}&mvid={mvid}";
         if (methodName != null) url += $"&methodName={Uri.EscapeDataString(methodName)}";
 
         var httpRequest = CreateRequest(HttpMethod.Get, url);
@@ -316,7 +316,7 @@ public class RemoteBackend : IBackend
 
     public async Task<TypeOutlineResult> GetTypeOutlineAsync(string mvid, string typeName, CancellationToken cancellationToken = default)
     {
-        var httpRequest = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/outline/{Uri.EscapeDataString(typeName)}");
+        var httpRequest = CreateRequest(HttpMethod.Get, $"/analysis/outline/{Uri.EscapeDataString(typeName)}?mvid={mvid}");
         try
         {
             var result = await SendAsync<TypeOutlineResult>(httpRequest, cancellationToken);
@@ -330,7 +330,7 @@ public class RemoteBackend : IBackend
 
     public async Task<PatchSkeletonResult> GeneratePatchSkeletonAsync(string mvid, string typeName, string methodName, string[] patchKinds, CancellationToken cancellationToken = default)
     {
-        var httpRequest = CreateRequest(HttpMethod.Post, $"/api/analysis/{mvid}/patch-skeleton", new { typeName, methodName, patchKinds });
+        var httpRequest = CreateRequest(HttpMethod.Post, $"/analysis/patch-skeleton?mvid={mvid}", new { typeName, methodName, patchKinds });
         try
         {
             var result = await SendAsync<PatchSkeletonResult>(httpRequest, cancellationToken);
@@ -344,7 +344,7 @@ public class RemoteBackend : IBackend
 
     public async Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
     {
-        var url = $"/api/analysis/compare?leftMvid={Uri.EscapeDataString(leftMvid)}&rightMvid={Uri.EscapeDataString(rightMvid)}&includeUnchanged={includeUnchanged}";
+        var url = $"/analysis/compare?leftMvid={Uri.EscapeDataString(leftMvid)}&rightMvid={Uri.EscapeDataString(rightMvid)}&includeUnchanged={includeUnchanged}";
         if (namespaceFilter != null) url += $"&namespaceFilter={Uri.EscapeDataString(namespaceFilter)}";
 
         var httpRequest = CreateRequest(HttpMethod.Get, url);
@@ -365,7 +365,7 @@ public class RemoteBackend : IBackend
 
     public async Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)
     {
-        var httpRequest = CreateRequest(HttpMethod.Post, $"/api/modification/{mvid}/inject/entry", new { method = methodFullName, instructions = request.Instructions });
+        var httpRequest = CreateRequest(HttpMethod.Post, "/modification/inject/entry", new { mvid, methodFullName, instructions = request.Instructions });
         try
         {
             var result = await SendAsync<ModificationResult>(httpRequest, cancellationToken);
@@ -379,7 +379,7 @@ public class RemoteBackend : IBackend
 
     public async Task<ModificationResult> ReplaceMethodBodyAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)
     {
-        var httpRequest = CreateRequest(HttpMethod.Post, $"/api/modification/{mvid}/replace/body", new { method = methodFullName, instructions = request.Instructions });
+        var httpRequest = CreateRequest(HttpMethod.Post, "/modification/replace/body", new { mvid, methodFullName, instructions = request.Instructions });
         try
         {
             var result = await SendAsync<ModificationResult>(httpRequest, cancellationToken);
@@ -393,7 +393,7 @@ public class RemoteBackend : IBackend
 
     public async Task<ModificationResult> AddTypeAsync(string mvid, TypeCreationRequest request, CancellationToken cancellationToken = default)
     {
-        var httpRequest = CreateRequest(HttpMethod.Post, $"/api/modification/{mvid}/type", request);
+        var httpRequest = CreateRequest(HttpMethod.Post, "/modification/type/add", new { mvid, request.Namespace, request.Name, request.Kind });
         try
         {
             var result = await SendAsync<ModificationResult>(httpRequest, cancellationToken);
@@ -407,7 +407,7 @@ public class RemoteBackend : IBackend
 
     public async Task<ModificationResult> SaveAssemblyAsync(string mvid, string outputPath, CancellationToken cancellationToken = default)
     {
-        var httpRequest = CreateRequest(HttpMethod.Post, $"/api/modification/{mvid}/save", new { path = outputPath });
+        var httpRequest = CreateRequest(HttpMethod.Post, "/modification/save", new { mvid, outputPath });
         try
         {
             var result = await SendAsync<ModificationResult>(httpRequest, cancellationToken);

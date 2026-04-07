@@ -468,48 +468,72 @@ public class LocalBackend : IBackend
 
     #region 修改操作
 
-    public Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)
+    public async Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)
     {
         var context = GetContext(mvid);
         if (context == null)
-        {
-            return Task.FromResult(ModificationResult.Failure("ASSEMBLY_NOT_FOUND", $"Assembly '{mvid}' not found"));
-        }
+            return ModificationResult.Failure("ASSEMBLY_NOT_FOUND", $"Assembly '{mvid}' not found");
 
-        return Task.FromResult(_modificationService.InjectAtEntry(context, methodFullName, request));
+        await context.OperationLock.WaitAsync(cancellationToken);
+        try
+        {
+            return _modificationService.InjectAtEntry(context, methodFullName, request);
+        }
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 
-    public Task<ModificationResult> ReplaceMethodBodyAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)
+    public async Task<ModificationResult> ReplaceMethodBodyAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)
     {
         var context = GetContext(mvid);
         if (context == null)
-        {
-            return Task.FromResult(ModificationResult.Failure("ASSEMBLY_NOT_FOUND", $"Assembly '{mvid}' not found"));
-        }
+            return ModificationResult.Failure("ASSEMBLY_NOT_FOUND", $"Assembly '{mvid}' not found");
 
-        return Task.FromResult(_modificationService.ReplaceMethodBody(context, methodFullName, request));
+        await context.OperationLock.WaitAsync(cancellationToken);
+        try
+        {
+            return _modificationService.ReplaceMethodBody(context, methodFullName, request);
+        }
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 
-    public Task<ModificationResult> AddTypeAsync(string mvid, TypeCreationRequest request, CancellationToken cancellationToken = default)
+    public async Task<ModificationResult> AddTypeAsync(string mvid, TypeCreationRequest request, CancellationToken cancellationToken = default)
     {
         var context = GetContext(mvid);
         if (context == null)
-        {
-            return Task.FromResult(ModificationResult.Failure("ASSEMBLY_NOT_FOUND", $"Assembly '{mvid}' not found"));
-        }
+            return ModificationResult.Failure("ASSEMBLY_NOT_FOUND", $"Assembly '{mvid}' not found");
 
-        return Task.FromResult(_modificationService.AddType(context, request));
+        await context.OperationLock.WaitAsync(cancellationToken);
+        try
+        {
+            return _modificationService.AddType(context, request);
+        }
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 
-    public Task<ModificationResult> SaveAssemblyAsync(string mvid, string outputPath, CancellationToken cancellationToken = default)
+    public async Task<ModificationResult> SaveAssemblyAsync(string mvid, string outputPath, CancellationToken cancellationToken = default)
     {
         var context = GetContext(mvid);
         if (context == null)
-        {
-            return Task.FromResult(ModificationResult.Failure("ASSEMBLY_NOT_FOUND", $"Assembly '{mvid}' not found"));
-        }
+            return ModificationResult.Failure("ASSEMBLY_NOT_FOUND", $"Assembly '{mvid}' not found");
 
-        return Task.FromResult(_modificationService.SaveAssembly(context, outputPath));
+        await context.OperationLock.WaitAsync(cancellationToken);
+        try
+        {
+            return _modificationService.SaveAssembly(context, outputPath);
+        }
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 
     #endregion

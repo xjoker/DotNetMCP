@@ -236,7 +236,7 @@ public sealed class OriginalSourceResolver : IDisposable
             _ => null
         };
 
-        return actualHash == null || actualHash.AsSpan().SequenceEqual(expectedHash);
+        return actualHash != null && actualHash.AsSpan().SequenceEqual(expectedHash);
     }
 
     private static bool TryOpenPortablePdb(string assemblyPath, out MetadataReaderProvider provider, out MetadataReader reader)

@@ -11,6 +11,13 @@ public class AssemblyContext : IDisposable
     private readonly CustomAssemblyResolver _resolver;
     private AssemblyDefinition? _assembly;
     private bool _disposed;
+    private readonly SemaphoreSlim _operationLock = new(1, 1);
+
+    /// <summary>
+    /// 获取操作锁，用于保护对 Cecil 对象图的并发访问。
+    /// 修改操作应使用此锁，分析操作在并发场景下也建议使用。
+    /// </summary>
+    public SemaphoreSlim OperationLock => _operationLock;
 
     /// <summary>
     /// 程序集定义
@@ -200,8 +207,9 @@ public class AssemblyContext : IDisposable
 
         _assembly?.Dispose();
         _resolver?.Dispose();
+        _operationLock.Dispose();
         _disposed = true;
-        
+
         GC.SuppressFinalize(this);
     }
 }
