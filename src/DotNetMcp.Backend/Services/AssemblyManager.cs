@@ -49,7 +49,13 @@ public class AssemblyManager : IAssemblyManager, IDisposable
             if (!string.IsNullOrEmpty(allowedPaths))
             {
                 var allowed = allowedPaths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
-                var isAllowed = allowed.Any(p => normalizedPath.StartsWith(Path.GetFullPath(p), StringComparison.OrdinalIgnoreCase));
+                var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                var isAllowed = allowed.Any(p =>
+                {
+                    var allowedDir = Path.GetFullPath(p).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                    return normalizedPath.StartsWith(allowedDir, comparison)
+                        || normalizedPath.Equals(allowedDir.TrimEnd(Path.DirectorySeparatorChar), comparison);
+                });
                 if (!isAllowed)
                 {
                     _logger.LogWarning("Path {Path} is not in allowed directories", normalizedPath);

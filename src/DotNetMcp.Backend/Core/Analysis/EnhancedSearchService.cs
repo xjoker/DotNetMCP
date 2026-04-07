@@ -67,7 +67,7 @@ public class SearchRequest
         {
             try
             {
-                request.RegEx = new Regex(query[1..^1], RegexOptions.IgnoreCase | RegexOptions.Compiled);
+                request.RegEx = new Regex(query[1..^1], RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromSeconds(5));
                 return request;
             }
             catch

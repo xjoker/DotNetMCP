@@ -148,6 +148,15 @@ public sealed class OriginalSourceResolver : IDisposable
         if (_pdbReader == null || !File.Exists(documentName))
             return null;
 
+        // 安全：要求文档有哈希校验
+        if (!HasRequiredHash(document))
+            return null;
+
+        // 安全：仅允许 .cs/.vb 源文件
+        var ext = Path.GetExtension(documentName).ToLowerInvariant();
+        if (ext != ".cs" && ext != ".vb")
+            return null;
+
         var bytes = File.ReadAllBytes(documentName);
         if (!VerifyHash(document, bytes))
             return null;
@@ -164,6 +173,14 @@ public sealed class OriginalSourceResolver : IDisposable
     private ResolvedSource? TryGetSourceLinkSource(string documentName, Document document)
     {
         if (_sourceLinkMap == null || !_sourceLinkMap.TryResolve(documentName, out var url))
+            return null;
+
+        // 安全：要求文档有哈希校验
+        if (!HasRequiredHash(document))
+            return null;
+
+        // 安全：仅允许 HTTPS scheme
+        if (url == null || !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             return null;
 
         try
@@ -190,13 +207,25 @@ public sealed class OriginalSourceResolver : IDisposable
         }
     }
 
+    /// <summary>
+    /// 检查文档是否有有效的哈希（本地/远程源必须有哈希才允许读取）
+    /// </summary>
+    private bool HasRequiredHash(Document document)
+    {
+        if (_pdbReader == null || document.Hash.IsNil || document.HashAlgorithm.IsNil)
+            return false;
+
+        var expectedHash = _pdbReader.GetBlobBytes(document.Hash);
+        return expectedHash.Length > 0;
+    }
+
     private bool VerifyHash(Document document, byte[] sourceBytes)
     {
         if (_pdbReader == null || document.Hash.IsNil || document.HashAlgorithm.IsNil)
-            return true;
+            return false;
 
         var expectedHash = _pdbReader.GetBlobBytes(document.Hash);
-        if (expectedHash.Length == 0) return true;
+        if (expectedHash.Length == 0) return false;
 
         var algorithm = _pdbReader.GetGuid(document.HashAlgorithm);
         byte[]? actualHash = algorithm switch

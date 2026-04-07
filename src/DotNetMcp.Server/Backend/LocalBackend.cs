@@ -86,7 +86,7 @@ public class LocalBackend : IBackend
 
         if (preferOriginalSource && language != "il" && context.AssemblyPath != null)
         {
-            var resolver = new OriginalSourceResolver();
+            using var resolver = new OriginalSourceResolver();
             var source = resolver.TryResolveType(context.AssemblyPath, typeName);
             if (source != null)
             {
@@ -105,15 +105,7 @@ public class LocalBackend : IBackend
             return Task.FromResult(DecompileResult.Failure($"Assembly '{mvid}' not found"));
         }
 
-        if (preferOriginalSource && language != "il" && context.AssemblyPath != null)
-        {
-            var resolver = new OriginalSourceResolver();
-            var source = resolver.TryResolveType(context.AssemblyPath, typeName);
-            if (source != null)
-            {
-                return Task.FromResult(DecompileResult.Success(source.Code, $"{typeName}.{methodName}"));
-            }
-        }
+        // preferOriginalSource 对单方法反编译不生效 — 原始源码是整个文件，无法精确提取单个方法
 
         return Task.FromResult(_analysisService.DecompileMethod(context, typeName, methodName, language));
     }
@@ -386,7 +378,29 @@ public class LocalBackend : IBackend
         if (type == null)
             return Task.FromResult(PatchSkeletonResult.Failure($"Type '{typeName}' not found"));
 
-        var method = type.Methods.FirstOrDefault(m => m.Name == methodName);
+        // 支持重载：methodName 可以是 "DoWork" 或 "DoWork(Int32,String)" 格式
+        Mono.Cecil.MethodDefinition? method;
+        if (methodName.Contains('('))
+        {
+            var nameOnly = methodName[..methodName.IndexOf('(')];
+            var paramsPart = methodName[(methodName.IndexOf('(') + 1)..].TrimEnd(')');
+            var paramTypes = paramsPart.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim()).ToArray();
+            method = type.Methods.FirstOrDefault(m => m.Name == nameOnly && m.Parameters.Count == paramTypes.Length
+                && m.Parameters.Select((p, i) => p.ParameterType.Name == paramTypes[i] || p.ParameterType.FullName == paramTypes[i]).All(x => x));
+        }
+        else
+        {
+            var candidates = type.Methods.Where(m => m.Name == methodName).ToList();
+            if (candidates.Count > 1)
+            {
+                var overloads = string.Join(", ", candidates.Select(m =>
+                    $"{m.Name}({string.Join(", ", m.Parameters.Select(p => p.ParameterType.Name))})"));
+                return Task.FromResult(PatchSkeletonResult.Failure(
+                    $"Method '{methodName}' is overloaded in type '{typeName}'. Specify parameters: {overloads}"));
+            }
+            method = candidates.FirstOrDefault();
+        }
+
         if (method == null)
             return Task.FromResult(PatchSkeletonResult.Failure($"Method '{methodName}' not found in type '{typeName}'"));
 

@@ -12,7 +12,7 @@ public class ApiKeyAuthMiddleware
     private readonly ILogger<ApiKeyAuthMiddleware> _logger;
     private readonly HashSet<string> _validApiKeys;
     private readonly bool _authEnabled;
-    private static readonly string[] _excludedPaths = ["/", "/health", "/openapi"];
+    private static readonly string[] _excludedPaths = ["/health", "/openapi"];
 
     public ApiKeyAuthMiddleware(
         RequestDelegate next,
@@ -54,8 +54,9 @@ public class ApiKeyAuthMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // 跳过排除路径
-        if (_excludedPaths.Any(p => context.Request.Path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase)))
+        // 跳过排除路径（精确匹配根路径，或 StartsWithSegments 匹配子路径）
+        var requestPath = context.Request.Path;
+        if (requestPath.Equals("/") || _excludedPaths.Any(p => requestPath.Equals(p, StringComparison.OrdinalIgnoreCase)))
         {
             await _next(context);
             return;

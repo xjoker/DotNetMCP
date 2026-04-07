@@ -220,8 +220,28 @@ public class ModificationService
     {
         try
         {
+            // 安全：限制输出路径
+            var normalizedOutput = Path.GetFullPath(outputPath);
+            var extension = Path.GetExtension(normalizedOutput).ToLowerInvariant();
+            if (extension != ".dll" && extension != ".exe")
+            {
+                return ModificationResult.Failure("INVALID_PATH", "Output path must have .dll or .exe extension");
+            }
+
+            // 限制到源程序集所在目录或其子目录
+            var assemblyDir = Path.GetDirectoryName(Path.GetFullPath(context.AssemblyPath ?? ""));
+            if (assemblyDir != null)
+            {
+                var outputDir = Path.GetDirectoryName(normalizedOutput);
+                if (outputDir != null && !outputDir.StartsWith(assemblyDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                    && !outputDir.Equals(assemblyDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ModificationResult.Failure("ACCESS_DENIED", "Output path must be within the source assembly's directory");
+                }
+            }
+
             var rewriter = new AssemblyRewriter(context.Assembly!);
-            var result = rewriter.Save(outputPath);
+            var result = rewriter.Save(normalizedOutput);
 
             if (!result.IsSuccess)
             {
