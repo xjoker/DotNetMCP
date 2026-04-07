@@ -26,12 +26,33 @@ public class AnalysisController : ControllerBase
     /// 获取类型源码
     /// </summary>
     [HttpGet("type/{typeName}/source")]
-    public IActionResult GetTypeSource(string typeName, [FromQuery] string language = "csharp", [FromQuery] string? mvid = null)
+    public IActionResult GetTypeSource(string typeName, [FromQuery] string language = "csharp", [FromQuery] string? mvid = null, [FromQuery] bool preferOriginalSource = false)
     {
         var context = _assemblyManager.Get(mvid);
         if (context == null)
         {
-            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded. Use assembly/load to load one first." });
+        }
+
+        // 尝试 PDB 原始源码（仅嵌入和本地，远程 SourceLink 默认禁用）
+        if (preferOriginalSource && language != "il" && context.AssemblyPath != null)
+        {
+            using var resolver = new OriginalSourceResolver();
+            var source = resolver.TryResolveType(context.AssemblyPath, Uri.UnescapeDataString(typeName));
+            if (source != null)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        type_name = Uri.UnescapeDataString(typeName),
+                        language,
+                        code = source.Code,
+                        source_kind = source.SourceKind
+                    }
+                });
+            }
         }
 
         var result = _analysisService.DecompileType(context, Uri.UnescapeDataString(typeName), language);
@@ -46,7 +67,7 @@ public class AnalysisController : ControllerBase
             data = new
             {
                 type_name = result.Target,
-                language = language,
+                language,
                 code = result.Code
             }
         });

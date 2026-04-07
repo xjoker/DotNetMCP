@@ -28,174 +28,214 @@ public class ModificationController : ControllerBase
     /// 注入方法入口代码
     /// </summary>
     [HttpPost("inject/entry")]
-    public IActionResult InjectAtEntry([FromBody] InjectRequest request)
+    public async Task<IActionResult> InjectAtEntry([FromBody] InjectRequest request)
     {
         var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
-            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
+            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND", message = "Assembly not found. Load an assembly first using the assembly/load endpoint." });
         }
 
-        var injection = new InjectionRequest
+        await context.OperationLock.WaitAsync();
+        try
         {
-            Instructions = request.Instructions.Select(i => new InstructionInfo
+            var injection = new InjectionRequest
             {
-                OpCode = i.OpCode,
-                IntValue = i.IntValue,
-                StringValue = i.StringValue
-            }).ToList()
-        };
+                Instructions = request.Instructions.Select(i => new InstructionInfo
+                {
+                    OpCode = i.OpCode,
+                    IntValue = i.IntValue,
+                    StringValue = i.StringValue
+                }).ToList()
+            };
 
-        var result = _modificationService.InjectAtEntry(context, request.MethodFullName, injection);
+            var result = _modificationService.InjectAtEntry(context, request.MethodFullName, injection);
 
-        if (!result.IsSuccess)
-        {
-            return BadRequest(new
+            if (!result.IsSuccess)
             {
-                success = false,
-                error_code = result.ErrorCode,
-                message = result.ErrorMessage
-            });
+                return BadRequest(new
+                {
+                    success = false,
+                    error_code = result.ErrorCode,
+                    message = result.ErrorMessage
+                });
+            }
+
+            return Ok(new { success = true, data = result.Data });
         }
-
-        return Ok(new { success = true, data = result.Data });
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 
     /// <summary>
     /// 替换方法体
     /// </summary>
     [HttpPost("replace/body")]
-    public IActionResult ReplaceMethodBody([FromBody] InjectRequest request)
+    public async Task<IActionResult> ReplaceMethodBody([FromBody] InjectRequest request)
     {
         var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
-            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
+            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND", message = "Assembly not found. Load an assembly first using the assembly/load endpoint." });
         }
 
-        var injection = new InjectionRequest
+        await context.OperationLock.WaitAsync();
+        try
         {
-            Instructions = request.Instructions.Select(i => new InstructionInfo
+            var injection = new InjectionRequest
             {
-                OpCode = i.OpCode,
-                IntValue = i.IntValue,
-                StringValue = i.StringValue
-            }).ToList()
-        };
+                Instructions = request.Instructions.Select(i => new InstructionInfo
+                {
+                    OpCode = i.OpCode,
+                    IntValue = i.IntValue,
+                    StringValue = i.StringValue
+                }).ToList()
+            };
 
-        var result = _modificationService.ReplaceMethodBody(context, request.MethodFullName, injection);
+            var result = _modificationService.ReplaceMethodBody(context, request.MethodFullName, injection);
 
-        if (!result.IsSuccess)
-        {
-            return BadRequest(new
+            if (!result.IsSuccess)
             {
-                success = false,
-                error_code = result.ErrorCode,
-                message = result.ErrorMessage
-            });
+                return BadRequest(new
+                {
+                    success = false,
+                    error_code = result.ErrorCode,
+                    message = result.ErrorMessage
+                });
+            }
+
+            return Ok(new { success = true, data = result.Data });
         }
-
-        return Ok(new { success = true, data = result.Data });
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 
     /// <summary>
     /// 添加新类型
     /// </summary>
     [HttpPost("type/add")]
-    public IActionResult AddType([FromBody] AddTypeRequest request)
+    public async Task<IActionResult> AddType([FromBody] AddTypeRequest request)
     {
         var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
-            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
+            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND", message = "Assembly not found. Load an assembly first using the assembly/load endpoint." });
         }
 
-        var typeRequest = new TypeCreationRequest
+        await context.OperationLock.WaitAsync();
+        try
         {
-            Namespace = request.Namespace,
-            Name = request.Name,
-            Kind = request.Kind
-        };
-
-        var result = _modificationService.AddType(context, typeRequest);
-
-        if (!result.IsSuccess)
-        {
-            return BadRequest(new
+            var typeRequest = new TypeCreationRequest
             {
-                success = false,
-                error_code = result.ErrorCode,
-                message = result.ErrorMessage
-            });
-        }
+                Namespace = request.Namespace,
+                Name = request.Name,
+                Kind = request.Kind
+            };
 
-        return Ok(new { success = true, data = result.Data });
+            var result = _modificationService.AddType(context, typeRequest);
+
+            if (!result.IsSuccess)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error_code = result.ErrorCode,
+                    message = result.ErrorMessage
+                });
+            }
+
+            return Ok(new { success = true, data = result.Data });
+        }
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 
     /// <summary>
     /// 添加方法
     /// </summary>
     [HttpPost("method/add")]
-    public IActionResult AddMethod([FromBody] AddMethodRequest request)
+    public async Task<IActionResult> AddMethod([FromBody] AddMethodRequest request)
     {
         var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
-            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
+            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND", message = "Assembly not found. Load an assembly first using the assembly/load endpoint." });
         }
 
-        var methodRequest = new MethodCreationRequest
+        await context.OperationLock.WaitAsync();
+        try
         {
-            TypeFullName = request.TypeFullName,
-            Name = request.Name,
-            ReturnType = request.ReturnType,
-            Parameters = request.Parameters?.Select(p => new ParameterInfo
+            var methodRequest = new MethodCreationRequest
             {
-                Name = p.Name,
-                Type = p.Type
-            }).ToList()
-        };
+                TypeFullName = request.TypeFullName,
+                Name = request.Name,
+                ReturnType = request.ReturnType,
+                Parameters = request.Parameters?.Select(p => new ParameterInfo
+                {
+                    Name = p.Name,
+                    Type = p.Type
+                }).ToList()
+            };
 
-        var result = _modificationService.AddMethod(context, methodRequest);
+            var result = _modificationService.AddMethod(context, methodRequest);
 
-        if (!result.IsSuccess)
-        {
-            return BadRequest(new
+            if (!result.IsSuccess)
             {
-                success = false,
-                error_code = result.ErrorCode,
-                message = result.ErrorMessage
-            });
+                return BadRequest(new
+                {
+                    success = false,
+                    error_code = result.ErrorCode,
+                    message = result.ErrorMessage
+                });
+            }
+
+            return Ok(new { success = true, data = result.Data });
         }
-
-        return Ok(new { success = true, data = result.Data });
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 
     /// <summary>
     /// 保存程序集
     /// </summary>
     [HttpPost("save")]
-    public IActionResult SaveAssembly([FromBody] SaveRequest request)
+    public async Task<IActionResult> SaveAssembly([FromBody] SaveRequest request)
     {
         var context = _assemblyManager.Get(request.Mvid);
         if (context == null)
         {
-            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND" });
+            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND", message = "Assembly not found. Load an assembly first using the assembly/load endpoint." });
         }
 
-        var result = _modificationService.SaveAssembly(context, request.OutputPath);
-
-        if (!result.IsSuccess)
+        await context.OperationLock.WaitAsync();
+        try
         {
-            return BadRequest(new
-            {
-                success = false,
-                error_code = result.ErrorCode,
-                message = result.ErrorMessage
-            });
-        }
+            var result = _modificationService.SaveAssembly(context, request.OutputPath);
 
-        return Ok(new { success = true, data = result.Data });
+            if (!result.IsSuccess)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error_code = result.ErrorCode,
+                    message = result.ErrorMessage
+                });
+            }
+
+            return Ok(new { success = true, data = result.Data });
+        }
+        finally
+        {
+            context.OperationLock.Release();
+        }
     }
 }
 

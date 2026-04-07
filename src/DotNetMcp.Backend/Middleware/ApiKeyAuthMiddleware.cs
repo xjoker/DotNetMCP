@@ -12,6 +12,7 @@ public class ApiKeyAuthMiddleware
     private readonly ILogger<ApiKeyAuthMiddleware> _logger;
     private readonly HashSet<string> _validApiKeys;
     private readonly bool _authEnabled;
+    private readonly bool _isProduction;
     private static readonly string[] _excludedPaths = ["/health", "/openapi"];
 
     public ApiKeyAuthMiddleware(
@@ -36,15 +37,15 @@ public class ApiKeyAuthMiddleware
 
         // 检查是否为生产环境
         var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
-        var isProduction = environment.Equals("Production", StringComparison.OrdinalIgnoreCase);
+        _isProduction = environment.Equals("Production", StringComparison.OrdinalIgnoreCase);
 
         if (_authEnabled)
         {
             _logger.LogInformation("API Key authentication enabled with {Count} keys", _validApiKeys.Count);
         }
-        else if (isProduction)
+        else if (_isProduction)
         {
-            _logger.LogCritical("SECURITY WARNING: API Key authentication disabled in Production environment! Set API_KEYS environment variable.");
+            _logger.LogCritical("SECURITY WARNING: No API keys configured in Production! All non-exempt endpoints will require authentication. Set API_KEYS environment variable.");
         }
         else
         {
@@ -62,9 +63,17 @@ public class ApiKeyAuthMiddleware
             return;
         }
 
-        // 如果未启用认证，允许所有请求
+        // 如果未启用认证：Production 拒绝请求，Development 允许
         if (!_authEnabled)
         {
+            if (_isProduction)
+            {
+                _logger.LogWarning("Rejected unauthenticated request to {Path} in Production (no API keys configured)", requestPath);
+                context.Response.StatusCode = 503;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync("""{"success":false,"error":"SERVICE_UNAVAILABLE","message":"API key authentication not configured. Set API_KEYS environment variable."}""");
+                return;
+            }
             await _next(context);
             return;
         }

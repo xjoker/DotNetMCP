@@ -73,6 +73,10 @@ namespace DotNetMcp.Backend.Services
                 return null;
             }
 
+            // 单次使用：已使用的 token 不能再次验证通过
+            if (token.Used)
+                return null;
+
             return token;
         }
 

@@ -42,7 +42,8 @@ public class RemoteBackend : IBackend
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            var response = await _httpClient.GetAsync("/instance/health", cts.Token);
+            using var request = CreateRequest(HttpMethod.Get, "/instance/health");
+            using var response = await _httpClient.SendAsync(request, cts.Token);
             _isHealthy = response.IsSuccessStatusCode;
             _lastHealthCheck = DateTime.UtcNow;
 
@@ -86,7 +87,7 @@ public class RemoteBackend : IBackend
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds));
 
-            var response = await _httpClient.SendAsync(request, cts.Token);
+            using var response = await _httpClient.SendAsync(request, cts.Token);
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadFromJsonAsync<T>(cts.Token);
@@ -127,7 +128,7 @@ public class RemoteBackend : IBackend
         var request = CreateRequest(HttpMethod.Delete, $"/instance/{mvid}");
         try
         {
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch

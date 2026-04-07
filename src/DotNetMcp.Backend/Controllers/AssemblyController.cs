@@ -33,11 +33,20 @@ public class AssemblyController : ControllerBase
             if (!result.IsSuccess)
             {
                 _logger.LogError("Failed to load assembly: {Message}", result.ErrorMessage);
+                // 返回错误码但不暴露完整服务器路径
+                var userMessage = result.ErrorCode switch
+                {
+                    AssemblyLoadErrorCode.FileNotFound => "File not found at the specified path.",
+                    AssemblyLoadErrorCode.InvalidFormat => "The file is not a valid .NET assembly.",
+                    AssemblyLoadErrorCode.DependencyNotFound => "A required dependency could not be found. Try specifying searchPaths.",
+                    AssemblyLoadErrorCode.AccessDenied => "Access denied. The path is not in the allowed directories.",
+                    _ => "Failed to load assembly."
+                };
                 return BadRequest(new
                 {
                     success = false,
                     error_code = result.ErrorCode,
-                    message = result.ErrorMessage
+                    message = userMessage
                 });
             }
 
@@ -60,7 +69,7 @@ public class AssemblyController : ControllerBase
             {
                 success = false,
                 error_code = "INTERNAL_ERROR",
-                message = ex.Message
+                message = "An internal error occurred while loading the assembly. Check server logs for details."
             });
         }
     }

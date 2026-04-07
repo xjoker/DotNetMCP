@@ -28,6 +28,16 @@ public sealed class OriginalSourceResolver : IDisposable
     private bool _initialized;
     private bool _disposed;
     private readonly object _initLock = new();
+    private readonly bool _enableRemoteSourceLink;
+
+    /// <summary>
+    /// 创建 OriginalSourceResolver
+    /// </summary>
+    /// <param name="enableRemoteSourceLink">是否允许通过 SourceLink 从远程下载源码（默认 false 以防止 SSRF）</param>
+    public OriginalSourceResolver(bool enableRemoteSourceLink = false)
+    {
+        _enableRemoteSourceLink = enableRemoteSourceLink;
+    }
 
     /// <summary>
     /// 尝试解析类型的原始源码
@@ -89,10 +99,10 @@ public sealed class OriginalSourceResolver : IDisposable
             if (!string.Equals(fileName, simpleTypeName, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            // 尝试三级策略获取源码
+            // 尝试获取源码：嵌入 → 本地 → SourceLink（仅在启用时）
             var source = TryGetEmbeddedSource(debugInfo.Document)
                       ?? TryGetLocalSource(docName, document)
-                      ?? TryGetSourceLinkSource(docName, document);
+                      ?? (_enableRemoteSourceLink ? TryGetSourceLinkSource(docName, document) : null);
 
             if (source != null)
                 return source;
