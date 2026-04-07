@@ -303,4 +303,130 @@ public class AnalysisToolsTests
     }
 
     #endregion
+
+    #region batch_decompile 测试
+
+    [Fact]
+    public async Task BatchDecompile_WithMultipleMembers_ReturnsAll()
+    {
+        // Arrange
+        var keys = new[] { "MyNamespace.ClassA", "MyNamespace.ClassB" };
+        var items = new List<BatchDecompileItem>
+        {
+            new() { MemberKey = keys[0], Code = "public class ClassA { }", TotalLines = 1 },
+            new() { MemberKey = keys[1], Code = "public class ClassB { }", TotalLines = 1 }
+        };
+
+        _mockBackend.Setup(b => b.BatchDecompileAsync("", keys, 200000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BatchDecompileResult.Success(items, false, 46, 2, 2));
+
+        // Act
+        var result = await _tools.BatchDecompile(keys);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Items!.Length);
+        Assert.False(result.Truncated);
+        Assert.Equal(2, result.Processed);
+        Assert.Equal(2, result.Requested);
+    }
+
+    [Fact]
+    public async Task BatchDecompile_WithCharBudgetExceeded_ReturnsTruncated()
+    {
+        // Arrange
+        var keys = new[] { "MyNamespace.ClassA", "MyNamespace.ClassB" };
+        var items = new List<BatchDecompileItem>
+        {
+            new() { MemberKey = keys[0], Code = "public class ClassA { }", TotalLines = 1 }
+        };
+
+        _mockBackend.Setup(b => b.BatchDecompileAsync("", keys, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BatchDecompileResult.Success(items, true, 23, 1, 2));
+
+        // Act
+        var result = await _tools.BatchDecompile(keys, maxTotalChars: 10);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Single(result.Items!);
+        Assert.True(result.Truncated);
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(2, result.Requested);
+    }
+
+    [Fact]
+    public async Task BatchDecompile_WithEmptyArray_ReturnsError()
+    {
+        // Act
+        var result = await _tools.BatchDecompile(Array.Empty<string>());
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("empty", result.Error!);
+    }
+
+    [Fact]
+    public async Task BatchDecompile_WithMethodKeys_ParsesCorrectly()
+    {
+        // Arrange
+        var keys = new[] { "MyNamespace.MyClass::DoWork" };
+        var items = new List<BatchDecompileItem>
+        {
+            new() { MemberKey = keys[0], Code = "public void DoWork() { }", TotalLines = 1 }
+        };
+
+        _mockBackend.Setup(b => b.BatchDecompileAsync("", keys, 200000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BatchDecompileResult.Success(items, false, 24, 1, 1));
+
+        // Act
+        var result = await _tools.BatchDecompile(keys);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Single(result.Items!);
+        Assert.Equal("MyNamespace.MyClass::DoWork", result.Items![0].MemberKey);
+    }
+
+    [Fact]
+    public async Task BatchDecompile_WithInlineError_DoesNotFailBatch()
+    {
+        // Arrange
+        var keys = new[] { "MyNamespace.ClassA", "NonExistent.Type" };
+        var items = new List<BatchDecompileItem>
+        {
+            new() { MemberKey = keys[0], Code = "public class ClassA { }", TotalLines = 1 },
+            new() { MemberKey = keys[1], Code = "// Error: Type not found", TotalLines = 1, IsError = true }
+        };
+
+        _mockBackend.Setup(b => b.BatchDecompileAsync("", keys, 200000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BatchDecompileResult.Success(items, false, 47, 2, 2));
+
+        // Act
+        var result = await _tools.BatchDecompile(keys);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(2, result.Items!.Length);
+        Assert.False(result.Items[0].IsError);
+        Assert.True(result.Items[1].IsError);
+    }
+
+    [Fact]
+    public async Task BatchDecompile_NoBackend_ReturnsError()
+    {
+        // Arrange
+        var registry = new Mock<IBackendRegistry>();
+        registry.Setup(r => r.Get(It.IsAny<string?>())).Returns((IBackend?)null);
+        var tools = new AnalysisTools(registry.Object);
+
+        // Act
+        var result = await tools.BatchDecompile(new[] { "Any.Type" });
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("No backend available", result.Error);
+    }
+
+    #endregion
 }

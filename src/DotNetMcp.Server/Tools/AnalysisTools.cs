@@ -201,6 +201,45 @@ public sealed class AnalysisTools
             Error = result.ErrorMessage
         };
     }
+    /// <summary>
+    /// 批量反编译多个成员
+    /// </summary>
+    [McpServerTool(Name = "batch_decompile"), Description("Decompile multiple types or methods in a single call with a character budget. Use 'TypeName' for types or 'TypeName::MethodName' for methods. Stops adding results when maxTotalChars is exceeded. Individual errors are returned inline without failing the batch.")]
+    public async Task<BatchDecompileToolResult> BatchDecompile(
+        [Description("Array of member keys. Use 'Namespace.TypeName' for types, 'Namespace.TypeName::MethodName' for methods.")] string[] memberKeys,
+        [Description("MVID of the assembly. Omit to use the default loaded assembly.")] string? mvid = null,
+        [Description("Maximum total characters to return across all results (default: 200000). Once exceeded, remaining members are skipped.")] int maxTotalChars = 200000,
+        [Description("Optional backend ID")] string? backendId = null)
+    {
+        var backend = _registry.Get(backendId);
+        if (backend == null)
+        {
+            return new BatchDecompileToolResult { Success = false, Error = "No backend available" };
+        }
+
+        if (memberKeys.Length == 0)
+        {
+            return new BatchDecompileToolResult { Success = false, Error = "memberKeys array cannot be empty" };
+        }
+
+        var result = await backend.BatchDecompileAsync(mvid ?? "", memberKeys, maxTotalChars);
+        return new BatchDecompileToolResult
+        {
+            Success = result.IsSuccess,
+            Items = result.Items.Select(i => new BatchDecompileItemDto
+            {
+                MemberKey = i.MemberKey,
+                Code = i.Code,
+                TotalLines = i.TotalLines,
+                IsError = i.IsError
+            }).ToArray(),
+            Truncated = result.Truncated,
+            TotalCharsReturned = result.TotalCharsReturned,
+            Processed = result.Processed,
+            Requested = result.Requested,
+            Error = result.ErrorMessage
+        };
+    }
 }
 
 public record DecompileTypeResult
@@ -260,4 +299,23 @@ public record CFGToolResult
     public int EdgeCount { get; init; }
     public string? Mermaid { get; init; }
     public string? Error { get; init; }
+}
+
+public record BatchDecompileToolResult
+{
+    public bool Success { get; init; }
+    public BatchDecompileItemDto[]? Items { get; init; }
+    public bool Truncated { get; init; }
+    public int TotalCharsReturned { get; init; }
+    public int Processed { get; init; }
+    public int Requested { get; init; }
+    public string? Error { get; init; }
+}
+
+public record BatchDecompileItemDto
+{
+    public string? MemberKey { get; init; }
+    public string? Code { get; init; }
+    public int TotalLines { get; init; }
+    public bool IsError { get; init; }
 }

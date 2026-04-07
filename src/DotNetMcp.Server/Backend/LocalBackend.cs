@@ -164,6 +164,60 @@ public class LocalBackend : IBackend
 
     #endregion
 
+    #region 批量操作
+
+    public Task<BatchDecompileResult> BatchDecompileAsync(string mvid, string[] memberKeys, int maxTotalChars = 200000, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return Task.FromResult(BatchDecompileResult.Failure($"Assembly '{mvid}' not found"));
+        }
+
+        var items = new List<BatchDecompileItem>();
+        var totalChars = 0;
+        var truncated = false;
+
+        foreach (var key in memberKeys)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                break;
+
+            DecompileResult result;
+            if (key.Contains("::"))
+            {
+                var parts = key.Split("::", 2);
+                result = _analysisService.DecompileMethod(context, parts[0], parts[1]);
+            }
+            else
+            {
+                result = _analysisService.DecompileType(context, key);
+            }
+
+            var code = result.IsSuccess ? result.Code ?? "" : $"// Error: {result.ErrorMessage}";
+            var codeLength = code.Length;
+
+            if (totalChars + codeLength > maxTotalChars && items.Count > 0)
+            {
+                truncated = true;
+                break;
+            }
+
+            totalChars += codeLength;
+            items.Add(new BatchDecompileItem
+            {
+                MemberKey = key,
+                Code = code,
+                TotalLines = code.Split('\n').Length,
+                IsError = !result.IsSuccess
+            });
+        }
+
+        return Task.FromResult(BatchDecompileResult.Success(items, truncated, totalChars, items.Count, memberKeys.Length));
+    }
+
+    #endregion
+
     #region 修改操作
 
     public Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)

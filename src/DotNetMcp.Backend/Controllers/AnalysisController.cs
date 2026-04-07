@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using DotNetMcp.Backend.Services;
+using DotNetMcp.Backend.Core.Analysis;
 
 namespace DotNetMcp.Backend.Controllers;
 
@@ -580,6 +581,78 @@ public class AnalysisController : ControllerBase
     }
 
     #endregion
+
+    #region 批量反编译
+
+    /// <summary>
+    /// 批量反编译 - 一次请求反编译多个成员，带字符预算控制
+    /// </summary>
+    [HttpPost("batch-decompile")]
+    public IActionResult BatchDecompile([FromBody] BatchDecompileRequest request, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid ?? request.Mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+        }
+
+        if (request.MemberKeys == null || request.MemberKeys.Count == 0)
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_REQUEST", message = "memberKeys cannot be empty" });
+        }
+
+        var items = new List<object>();
+        var totalChars = 0;
+        var truncated = false;
+        var maxTotalChars = request.MaxTotalChars ?? 200000;
+
+        foreach (var key in request.MemberKeys)
+        {
+            DecompileResult result;
+            if (key.Contains("::"))
+            {
+                var parts = key.Split("::", 2);
+                result = _analysisService.DecompileMethod(context, parts[0], parts[1]);
+            }
+            else
+            {
+                result = _analysisService.DecompileType(context, key);
+            }
+
+            var code = result.IsSuccess ? result.Code ?? "" : $"// Error: {result.ErrorMessage}";
+            var codeLength = code.Length;
+
+            if (totalChars + codeLength > maxTotalChars && items.Count > 0)
+            {
+                truncated = true;
+                break;
+            }
+
+            totalChars += codeLength;
+            items.Add(new
+            {
+                memberKey = key,
+                code,
+                totalLines = code.Split('\n').Length,
+                isError = !result.IsSuccess
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                items,
+                truncated,
+                totalCharsReturned = totalChars,
+                processed = items.Count,
+                requested = request.MemberKeys.Count
+            }
+        });
+    }
+
+    #endregion
 }
 
 #region Request Models
@@ -608,6 +681,13 @@ public class BatchXRefsRequest
 {
     public List<string>? TypeNames { get; set; }
     public int? Limit { get; set; }
+    public string? Mvid { get; set; }
+}
+
+public class BatchDecompileRequest
+{
+    public List<string>? MemberKeys { get; set; }
+    public int? MaxTotalChars { get; set; }
     public string? Mvid { get; set; }
 }
 

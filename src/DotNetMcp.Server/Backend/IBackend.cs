@@ -54,6 +54,9 @@ public interface IBackend
     Task<CallGraphResult> BuildCallGraphAsync(string mvid, string typeName, string methodName, string direction = "callees", int maxDepth = 3, int maxNodes = 100, CancellationToken cancellationToken = default);
     Task<CFGResult> BuildControlFlowGraphAsync(string mvid, string typeName, string methodName, bool includeIL = false, CancellationToken cancellationToken = default);
 
+    // 批量操作
+    Task<BatchDecompileResult> BatchDecompileAsync(string mvid, string[] memberKeys, int maxTotalChars = 200000, CancellationToken cancellationToken = default);
+
     // 修改操作
     Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
     Task<ModificationResult> ReplaceMethodBodyAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
@@ -79,4 +82,36 @@ public record AssemblyInfo
     public required string Name { get; init; }
     public required string Path { get; init; }
     public bool IsDefault { get; init; }
+}
+
+/// <summary>
+/// 批量反编译结果
+/// </summary>
+public class BatchDecompileResult
+{
+    public bool IsSuccess { get; set; }
+    public List<BatchDecompileItem> Items { get; set; } = new();
+    public bool Truncated { get; set; }
+    public int TotalCharsReturned { get; set; }
+    public int Processed { get; set; }
+    public int Requested { get; set; }
+    public string? ErrorMessage { get; set; }
+
+    public static BatchDecompileResult Success(List<BatchDecompileItem> items, bool truncated, int totalChars, int processed, int requested)
+        => new() { IsSuccess = true, Items = items, Truncated = truncated, TotalCharsReturned = totalChars, Processed = processed, Requested = requested };
+
+    public static BatchDecompileResult Failure(string error)
+        => new() { IsSuccess = false, ErrorMessage = error };
+}
+
+/// <summary>
+/// 批量反编译单项
+/// </summary>
+public class BatchDecompileItem
+{
+    public required string MemberKey { get; set; }
+    public string? Code { get; set; }
+    public string Language { get; set; } = "csharp";
+    public int TotalLines { get; set; }
+    public bool IsError { get; set; }
 }

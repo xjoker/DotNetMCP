@@ -281,6 +281,24 @@ public class RemoteBackend : IBackend
 
     #endregion
 
+    #region 批量操作
+
+    public async Task<BatchDecompileResult> BatchDecompileAsync(string mvid, string[] memberKeys, int maxTotalChars = 200000, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Post, $"/api/analysis/{mvid}/batch-decompile", new { memberKeys, maxTotalChars });
+        try
+        {
+            var result = await SendAsync<BatchDecompileResult>(httpRequest, cancellationToken);
+            return result ?? BatchDecompileResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return BatchDecompileResult.Failure(ex.Message);
+        }
+    }
+
+    #endregion
+
     #region 修改操作
 
     public async Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)
