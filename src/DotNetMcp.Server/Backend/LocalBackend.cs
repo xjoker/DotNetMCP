@@ -272,6 +272,90 @@ public class LocalBackend : IBackend
         return Task.FromResult(ChunkingPlanResult.Success(chunks, totalLines, avgCharsPerLine));
     }
 
+    public Task<TypeOutlineResult> GetTypeOutlineAsync(string mvid, string typeName, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(TypeOutlineResult.Failure($"Assembly '{mvid}' not found"));
+
+        var type = context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
+        if (type == null)
+            return Task.FromResult(TypeOutlineResult.Failure($"Type '{typeName}' not found"));
+
+        var kind = type.IsInterface ? "Interface" : type.IsEnum ? "Enum" : type.IsValueType ? "Struct" : "Class";
+        var accessibility = type.IsPublic || type.IsNestedPublic ? "Public"
+            : type.IsNestedFamily ? "Protected"
+            : type.IsNestedAssembly ? "Internal"
+            : "Private";
+
+        var result = new TypeOutlineResult
+        {
+            IsSuccess = true,
+            TypeName = type.FullName,
+            Kind = kind,
+            Namespace = type.Namespace,
+            Accessibility = accessibility,
+            BaseType = type.BaseType?.FullName,
+            Interfaces = type.Interfaces.Select(i => i.InterfaceType.FullName).ToList(),
+            Members = new List<MemberOutlineItem>()
+        };
+
+        foreach (var method in type.Methods)
+        {
+            var paramStr = string.Join(", ", method.Parameters.Select(p => $"{p.ParameterType.Name} {p.Name}"));
+            result.Members.Add(new MemberOutlineItem
+            {
+                Kind = method.IsConstructor ? "Constructor" : "Method",
+                Name = method.Name,
+                Signature = $"{method.ReturnType.Name} {method.Name}({paramStr})",
+                Accessibility = method.IsPublic ? "Public" : method.IsFamily ? "Protected" : method.IsAssembly ? "Internal" : "Private",
+                IsStatic = method.IsStatic,
+                IsVirtual = method.IsVirtual,
+                IsAbstract = method.IsAbstract
+            });
+        }
+
+        foreach (var field in type.Fields)
+        {
+            result.Members.Add(new MemberOutlineItem
+            {
+                Kind = "Field",
+                Name = field.Name,
+                Signature = $"{field.FieldType.Name} {field.Name}",
+                Accessibility = field.IsPublic ? "Public" : field.IsFamily ? "Protected" : field.IsAssembly ? "Internal" : "Private",
+                IsStatic = field.IsStatic
+            });
+        }
+
+        foreach (var prop in type.Properties)
+        {
+            var getter = prop.GetMethod;
+            var setter = prop.SetMethod;
+            var accessMethod = getter ?? setter;
+            result.Members.Add(new MemberOutlineItem
+            {
+                Kind = "Property",
+                Name = prop.Name,
+                Signature = $"{prop.PropertyType.Name} {prop.Name} {{ {(getter != null ? "get; " : "")}{(setter != null ? "set; " : "")}}}",
+                Accessibility = accessMethod?.IsPublic == true ? "Public" : accessMethod?.IsFamily == true ? "Protected" : "Private",
+                IsStatic = accessMethod?.IsStatic ?? false
+            });
+        }
+
+        foreach (var evt in type.Events)
+        {
+            result.Members.Add(new MemberOutlineItem
+            {
+                Kind = "Event",
+                Name = evt.Name,
+                Signature = $"{evt.EventType.Name} {evt.Name}",
+                Accessibility = evt.AddMethod?.IsPublic == true ? "Public" : "Private"
+            });
+        }
+
+        return Task.FromResult(result);
+    }
+
     public Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
     {
         var leftContext = GetContext(leftMvid);

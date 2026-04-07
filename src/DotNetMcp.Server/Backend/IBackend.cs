@@ -63,6 +63,9 @@ public interface IBackend
     // 分块规划
     Task<ChunkingPlanResult> PlanChunkingAsync(string mvid, string typeName, string? methodName = null, int targetChunkSize = 6000, int overlap = 2, CancellationToken cancellationToken = default);
 
+    // 类型大纲
+    Task<TypeOutlineResult> GetTypeOutlineAsync(string mvid, string typeName, CancellationToken cancellationToken = default);
+
     // 修改操作
     Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
     Task<ModificationResult> ReplaceMethodBodyAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
@@ -185,4 +188,34 @@ public class ChunkInfo
     public int StartLine { get; set; }
     public int EndLine { get; set; }
     public int EstimatedChars { get; set; }
+}
+
+/// <summary>
+/// 类型大纲结果
+/// </summary>
+public class TypeOutlineResult
+{
+    public bool IsSuccess { get; set; }
+    public string? ErrorMessage { get; set; }
+    public string? TypeName { get; set; }
+    public string? Kind { get; set; }
+    public string? Namespace { get; set; }
+    public string? Accessibility { get; set; }
+    public string? BaseType { get; set; }
+    public List<string> Interfaces { get; set; } = new();
+    public List<MemberOutlineItem> Members { get; set; } = new();
+
+    public static TypeOutlineResult Failure(string error)
+        => new() { IsSuccess = false, ErrorMessage = error };
+}
+
+public class MemberOutlineItem
+{
+    public required string Kind { get; set; }
+    public required string Name { get; set; }
+    public string? Signature { get; set; }
+    public string? Accessibility { get; set; }
+    public bool IsStatic { get; set; }
+    public bool IsVirtual { get; set; }
+    public bool IsAbstract { get; set; }
 }

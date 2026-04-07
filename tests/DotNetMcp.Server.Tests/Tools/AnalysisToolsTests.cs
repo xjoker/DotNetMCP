@@ -304,6 +304,55 @@ public class AnalysisToolsTests
 
     #endregion
 
+    #region get_type_outline 测试
+
+    [Fact]
+    public async Task GetTypeOutline_WithValidType_ReturnsOutline()
+    {
+        // Arrange
+        var outline = new TypeOutlineResult
+        {
+            IsSuccess = true,
+            TypeName = "MyNs.MyClass",
+            Kind = "Class",
+            Namespace = "MyNs",
+            Accessibility = "Public",
+            BaseType = "System.Object",
+            Interfaces = new List<string> { "System.IDisposable" },
+            Members = new List<MemberOutlineItem>
+            {
+                new() { Kind = "Method", Name = "DoWork", Signature = "Void DoWork()", Accessibility = "Public" },
+                new() { Kind = "Property", Name = "Name", Signature = "String Name { get; set; }", Accessibility = "Public" }
+            }
+        };
+
+        _mockBackend.Setup(b => b.GetTypeOutlineAsync("", "MyNs.MyClass", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(outline);
+
+        // Act
+        var result = await _tools.GetTypeOutline("MyNs.MyClass");
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal("Class", result.Kind);
+        Assert.Equal(2, result.Members!.Length);
+        Assert.Single(result.Interfaces!);
+    }
+
+    [Fact]
+    public async Task GetTypeOutline_TypeNotFound_ReturnsError()
+    {
+        _mockBackend.Setup(b => b.GetTypeOutlineAsync("", "Bad.Type", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(TypeOutlineResult.Failure("Type 'Bad.Type' not found"));
+
+        var result = await _tools.GetTypeOutline("Bad.Type");
+
+        Assert.False(result.Success);
+        Assert.Contains("not found", result.Error!);
+    }
+
+    #endregion
+
     #region plan_chunking 测试
 
     [Fact]

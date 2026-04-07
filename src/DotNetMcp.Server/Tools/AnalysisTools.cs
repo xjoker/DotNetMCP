@@ -202,6 +202,43 @@ public sealed class AnalysisTools
         };
     }
     /// <summary>
+    /// 获取类型大纲
+    /// </summary>
+    [McpServerTool(Name = "get_type_outline"), Description("Get a metadata-based structural outline of a type without full decompilation. Faster than decompile_type for quick orientation. Returns type kind, base type, interfaces, and all members with their signatures and accessibility.")]
+    public async Task<TypeOutlineToolResult> GetTypeOutline(
+        [Description("Full name of the type (e.g., 'MyNamespace.MyClass')")] string typeName,
+        [Description("MVID of the assembly. Omit to use the default loaded assembly.")] string? mvid = null,
+        [Description("Optional backend ID")] string? backendId = null)
+    {
+        var backend = _registry.Get(backendId);
+        if (backend == null)
+            return new TypeOutlineToolResult { Success = false, Error = "No backend available" };
+
+        var result = await backend.GetTypeOutlineAsync(mvid ?? "", typeName);
+        return new TypeOutlineToolResult
+        {
+            Success = result.IsSuccess,
+            TypeName = result.TypeName,
+            Kind = result.Kind,
+            Namespace = result.Namespace,
+            Accessibility = result.Accessibility,
+            BaseType = result.BaseType,
+            Interfaces = result.Interfaces.ToArray(),
+            Members = result.Members.Select(m => new MemberOutlineDto
+            {
+                Kind = m.Kind,
+                Name = m.Name,
+                Signature = m.Signature,
+                Accessibility = m.Accessibility,
+                IsStatic = m.IsStatic,
+                IsVirtual = m.IsVirtual,
+                IsAbstract = m.IsAbstract
+            }).ToArray(),
+            Error = result.ErrorMessage
+        };
+    }
+
+    /// <summary>
     /// 规划源码分块方案
     /// </summary>
     [McpServerTool(Name = "plan_chunking"), Description("Plan line-range chunks for a type or method's decompiled source. Useful for LLM-friendly paging of large source code. Returns chunk boundaries with estimated character counts based on a target character budget per chunk.")]
@@ -422,4 +459,28 @@ public record ChunkInfoDto
     public int StartLine { get; init; }
     public int EndLine { get; init; }
     public int EstimatedChars { get; init; }
+}
+
+public record TypeOutlineToolResult
+{
+    public bool Success { get; init; }
+    public string? TypeName { get; init; }
+    public string? Kind { get; init; }
+    public string? Namespace { get; init; }
+    public string? Accessibility { get; init; }
+    public string? BaseType { get; init; }
+    public string[]? Interfaces { get; init; }
+    public MemberOutlineDto[]? Members { get; init; }
+    public string? Error { get; init; }
+}
+
+public record MemberOutlineDto
+{
+    public string? Kind { get; init; }
+    public string? Name { get; init; }
+    public string? Signature { get; init; }
+    public string? Accessibility { get; init; }
+    public bool IsStatic { get; init; }
+    public bool IsVirtual { get; init; }
+    public bool IsAbstract { get; init; }
 }

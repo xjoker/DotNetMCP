@@ -314,6 +314,20 @@ public class RemoteBackend : IBackend
         }
     }
 
+    public async Task<TypeOutlineResult> GetTypeOutlineAsync(string mvid, string typeName, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Get, $"/api/analysis/{mvid}/outline/{Uri.EscapeDataString(typeName)}");
+        try
+        {
+            var result = await SendAsync<TypeOutlineResult>(httpRequest, cancellationToken);
+            return result ?? TypeOutlineResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return TypeOutlineResult.Failure(ex.Message);
+        }
+    }
+
     public async Task<CompareAssembliesResult> CompareAssembliesAsync(string leftMvid, string rightMvid, string? namespaceFilter = null, bool includeUnchanged = false, CancellationToken cancellationToken = default)
     {
         var url = $"/api/analysis/compare?leftMvid={Uri.EscapeDataString(leftMvid)}&rightMvid={Uri.EscapeDataString(rightMvid)}&includeUnchanged={includeUnchanged}";
