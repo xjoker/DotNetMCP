@@ -33,8 +33,9 @@ AI 静态逆向工程 MCP 服务，使 AI 能够自主进行 .NET 程序集的�
 
 ### 依赖
 - Mono.Cecil 0.11.6
-- ICSharpCode.Decompiler 9.1.0.7988
-- Microsoft.CodeAnalysis.CSharp 5.0.0
+- ICSharpCode.Decompiler 10.0.0.8330
+- Microsoft.CodeAnalysis.CSharp 5.3.0
+- ModelContextProtocol 1.2.0
 
 ## 关键设计决策
 

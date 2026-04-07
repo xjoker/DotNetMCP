@@ -222,6 +222,7 @@ Decompile type to C# or IL.
 |-----------|------|----------|-------------|
 | `typeName` | string | Yes | Full type name |
 | `language` | string | No | Output language: csharp, il (default csharp) |
+| `preferOriginalSource` | bool | No | Prefer original source from PDB when available |
 | `mvid` | string | No | Specific assembly MVID |
 
 **Response Example:**
@@ -434,6 +435,99 @@ Build control flow graph.
 
 ---
 
+### get_type_outline
+
+Get a metadata-based structural outline of a type without full decompilation.
+
+**Use Cases:**
+- Quick orientation on type structure
+- List members without reading full source code
+- Faster than decompile_type for large classes
+
+**AI Conversation Examples:**
+> "Show me the outline of UserService class"
+>
+> "What members does MyClass have?"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `typeName` | string | Yes | Full type name |
+| `mvid` | string | No | Specific assembly MVID |
+
+---
+
+### plan_chunking
+
+Plan line-range chunks for a type or method's decompiled source.
+
+**Use Cases:**
+- Break large source code into LLM-friendly chunks
+- Plan paged reading of big classes
+
+**AI Conversation Examples:**
+> "Plan chunks for the large DatabaseService class"
+>
+> "How should I page through this 500-line class?"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `typeName` | string | Yes | Full type name |
+| `methodName` | string | No | Method name (chunks only that method) |
+| `targetChunkSize` | int | No | Target chars per chunk (default 6000) |
+| `overlap` | int | No | Overlapping lines between chunks (default 2) |
+| `mvid` | string | No | Specific assembly MVID |
+
+---
+
+### compare_assemblies
+
+Compare two loaded assemblies to find structural differences.
+
+**Use Cases:**
+- Diff two versions of the same assembly
+- Find what changed between builds
+- Track modifications after patching
+
+**AI Conversation Examples:**
+> "Compare the two loaded assemblies to see what changed"
+>
+> "What types were added in the new version?"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `leftMvid` | string | Yes | MVID of original assembly |
+| `rightMvid` | string | Yes | MVID of modified assembly |
+| `namespaceFilter` | string | No | Filter by namespace prefix |
+| `includeUnchanged` | bool | No | Include unchanged types (default false) |
+
+---
+
+### batch_decompile
+
+Decompile multiple types or methods in a single call with a character budget.
+
+**Use Cases:**
+- Decompile several related classes at once
+- Efficient batch analysis
+- Reduce MCP round trips
+
+**AI Conversation Examples:**
+> "Decompile UserService, OrderService, and PaymentService together"
+>
+> "Batch decompile all the controller classes"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `memberKeys` | string[] | Yes | Array of member keys (TypeName or TypeName::MethodName) |
+| `maxTotalChars` | int | No | Maximum total characters (default 200000) |
+| `mvid` | string | No | Specific assembly MVID |
+
+---
+
 ## Modification Tools
 
 ### inject_at_entry
@@ -553,6 +647,33 @@ Save modified assembly.
 **Notes:**
 - Ensure all modifications are complete before saving
 - Recommended to backup original file first
+- Output path is restricted to the source assembly's directory
+
+---
+
+### generate_patch_skeleton
+
+Generate a Harmony patch skeleton for a method.
+
+**Use Cases:**
+- Create Harmony patch templates for game modding
+- Generate Prefix/Postfix/Transpiler/Finalizer patches
+- Unity, RimWorld, and other game modding workflows
+
+**AI Conversation Examples:**
+> "Generate a Harmony prefix patch for PlayerController.Update"
+>
+> "Create a postfix patch for GameManager.SaveGame"
+>
+> "Generate all patch types for the Login method"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `typeName` | string | Yes | Full type name |
+| `methodName` | string | Yes | Method name (use "Name(Type1,Type2)" for overloads) |
+| `patchKinds` | string | No | Comma-separated: Prefix, Postfix, Transpiler, Finalizer (default "Prefix,Postfix") |
+| `mvid` | string | No | Specific assembly MVID |
 
 ---
 

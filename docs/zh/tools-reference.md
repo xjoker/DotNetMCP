@@ -222,6 +222,7 @@
 |------|------|------|------|
 | `typeName` | string | 是 | 完整类型名 |
 | `language` | string | 否 | 输出语言：csharp、il（默认 csharp） |
+| `preferOriginalSource` | bool | 否 | 优先使用 PDB 中的原始源码 |
 | `mvid` | string | 否 | 指定程序集 MVID |
 
 **返回示例：**
@@ -434,6 +435,79 @@
 
 ---
 
+### get_type_outline
+
+获取类型元数据大纲（无需反编译）。
+
+**使用场景：**
+- 快速了解类型结构
+- 列出所有成员而不读取完整源码
+- 比 decompile_type 更快
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `typeName` | string | 是 | 完整类型名 |
+| `mvid` | string | 否 | 指定程序集 MVID |
+
+---
+
+### plan_chunking
+
+规划类型或方法源码的分块方案。
+
+**使用场景：**
+- 将大型源码拆分为 LLM 友好的块
+- 规划大类的分页阅读
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `typeName` | string | 是 | 完整类型名 |
+| `methodName` | string | 否 | 方法名（仅对该方法分块） |
+| `targetChunkSize` | int | 否 | 每块目标字符数（默认 6000） |
+| `overlap` | int | 否 | 块间重叠行数（默认 2） |
+| `mvid` | string | 否 | 指定程序集 MVID |
+
+---
+
+### compare_assemblies
+
+对比两个已加载的程序集，查找结构差异。
+
+**使用场景：**
+- 对比同一程序集的两个版本
+- 查找构建间的变更
+- 追踪修改后的差异
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `leftMvid` | string | 是 | 原始程序集的 MVID |
+| `rightMvid` | string | 是 | 修改后程序集的 MVID |
+| `namespaceFilter` | string | 否 | 按命名空间前缀过滤 |
+| `includeUnchanged` | bool | 否 | 包含未变更的类型（默认 false） |
+
+---
+
+### batch_decompile
+
+一次调用批量反编译多个类型或方法，带字符预算控制。
+
+**使用场景：**
+- 同时反编译多个相关类
+- 高效批量分析
+- 减少 MCP 往返次数
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `memberKeys` | string[] | 是 | 成员键数组（TypeName 或 TypeName::MethodName） |
+| `maxTotalChars` | int | 否 | 最大总字符数（默认 200000） |
+| `mvid` | string | 否 | 指定程序集 MVID |
+
+---
+
 ## 修改工具
 
 ### inject_at_entry
@@ -553,6 +627,31 @@
 **注意事项：**
 - 保存前请确保所有修改已完成
 - 建议先备份原始文件
+- 输出路径限制在源程序集所在目录内
+
+---
+
+### generate_patch_skeleton
+
+生成 Harmony Patch 骨架代码。
+
+**使用场景：**
+- 为游戏 Mod 开发创建 Harmony Patch 模板
+- 生成 Prefix/Postfix/Transpiler/Finalizer 补丁
+- Unity、RimWorld 等游戏 Modding 工作流
+
+**AI 对话示例：**
+> "为 PlayerController.Update 生成 Harmony Prefix 补丁"
+>
+> "为 Login 方法生成所有类型的补丁"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `typeName` | string | 是 | 完整类型名 |
+| `methodName` | string | 是 | 方法名（重载方法使用 "Name(Type1,Type2)" 格式） |
+| `patchKinds` | string | 否 | 逗号分隔：Prefix、Postfix、Transpiler、Finalizer（默认 "Prefix,Postfix"） |
+| `mvid` | string | 否 | 指定程序集 MVID |
 
 ---
 

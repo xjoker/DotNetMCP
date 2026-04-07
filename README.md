@@ -32,7 +32,7 @@ flowchart TB
     Client -->|"MCP Protocol (stdio/HTTP)"| Server
 
     subgraph Server["DotNetMcp.Server"]
-        Tools["MCP Tools (20)<br/>Assembly | Search | Analysis | Modification | Instance"]
+        Tools["MCP Tools (25)<br/>Assembly | Search | Analysis | Modification | Instance"]
         Registry["Backend Registry<br/>(Local / Remote)"]
         Tools --> Registry
     end
@@ -212,18 +212,22 @@ Or use the compiled executable:
 | `search_types` | Search types by keyword |
 | `search_strings` | Search string literals |
 
-### Analysis Tools (6)
+### Analysis Tools (10)
 
 | Tool | Description |
 |------|-------------|
-| `decompile_type` | Decompile type to C#/IL |
+| `decompile_type` | Decompile type to C#/IL (supports PDB original source) |
 | `decompile_method` | Decompile method |
 | `find_type_references` | Find type references |
 | `find_method_calls` | Find method calls |
 | `get_call_graph` | Build call graph |
 | `get_control_flow_graph` | Build control flow graph |
+| `get_type_outline` | Get metadata-based type outline (no decompilation) |
+| `plan_chunking` | Plan LLM-friendly source code chunks |
+| `compare_assemblies` | Compare two assemblies for structural differences |
+| `batch_decompile` | Decompile multiple members in one call |
 
-### Modification Tools (4)
+### Modification Tools (5)
 
 | Tool | Description |
 |------|-------------|
@@ -231,6 +235,7 @@ Or use the compiled executable:
 | `replace_method_body` | Replace method body |
 | `add_type` | Add new type |
 | `save_assembly` | Save modified assembly |
+| `generate_patch_skeleton` | Generate Harmony patch skeleton code |
 
 ### Instance Management (5)
 
@@ -306,8 +311,8 @@ dotnet test tests/DotNetMcp.Backend.Tests
 ```
 
 Current test status:
-- Backend tests: 113 passed
-- Server tests: 79 passed
+- Backend tests: 135 passed
+- Server tests: 96 passed
 
 ## Project Structure
 

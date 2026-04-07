@@ -32,7 +32,7 @@ flowchart TB
     Client -->|"MCP Protocol (stdio/HTTP)"| Server
 
     subgraph Server["DotNetMcp.Server"]
-        Tools["MCP Tools (20个)<br/>Assembly | Search | Analysis | Modification | Instance"]
+        Tools["MCP Tools (25个)<br/>Assembly | Search | Analysis | Modification | Instance"]
         Registry["Backend Registry<br/>(Local / Remote)"]
         Tools --> Registry
     end
@@ -212,18 +212,22 @@ claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
 | `search_types` | 按关键词搜索类型 |
 | `search_strings` | 搜索字符串字面量 |
 
-### 分析工具 (6)
+### 分析工具 (10)
 
 | 工具 | 说明 |
 |------|------|
-| `decompile_type` | 反编译类型为 C#/IL |
+| `decompile_type` | 反编译类型为 C#/IL（支持 PDB 原始源码） |
 | `decompile_method` | 反编译方法 |
 | `find_type_references` | 查找类型引用 |
 | `find_method_calls` | 查找方法调用 |
 | `get_call_graph` | 构建调用图 |
 | `get_control_flow_graph` | 构建控制流图 |
+| `get_type_outline` | 获取类型元数据大纲（无需反编译） |
+| `plan_chunking` | 规划 LLM 友好的源码分块方案 |
+| `compare_assemblies` | 对比两个程序集的结构差异 |
+| `batch_decompile` | 批量反编译多个成员 |
 
-### 修改工具 (4)
+### 修改工具 (5)
 
 | 工具 | 说明 |
 |------|------|
@@ -231,6 +235,7 @@ claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
 | `replace_method_body` | 替换方法体 |
 | `add_type` | 添加新类型 |
 | `save_assembly` | 保存修改后的程序集 |
+| `generate_patch_skeleton` | 生成 Harmony Patch 骨架代码 |
 
 ### 实例管理 (5)
 
@@ -306,8 +311,8 @@ dotnet test tests/DotNetMcp.Backend.Tests
 ```
 
 当前测试状态：
-- Backend 测试：113 个 ✅
-- Server 测试：79 个 ✅
+- Backend 测试：135 个 ✅
+- Server 测试：96 个 ✅
 
 ## 项目结构
 
