@@ -10,7 +10,28 @@ English | [中文](../zh/getting-started.md)
 
 ## Installation
 
-### Option 1: Build from Source (Recommended)
+### Option 1: Download Pre-built Binary (Recommended — no .NET SDK needed)
+
+1. Go to [GitHub Releases](https://github.com/xjoker/DotNetMCP/releases) and download the zip for your platform:
+
+   | Platform | File |
+   |----------|------|
+   | Windows x64 | `DotNetMcp-win-x64.zip` |
+   | Linux x64 | `DotNetMcp-linux-x64.zip` |
+   | Linux ARM64 | `DotNetMcp-linux-arm64.zip` |
+   | macOS x64 | `DotNetMcp-osx-x64.zip` |
+   | macOS ARM64 (Apple Silicon) | `DotNetMcp-osx-arm64.zip` |
+
+2. Extract to any directory. You will find a single self-contained executable: `DotNetMcp.Server` (or `DotNetMcp.Server.exe` on Windows).
+
+3. **macOS/Linux only** — make it executable:
+   ```bash
+   chmod +x /path/to/DotNetMcp.Server
+   ```
+
+4. Configure Claude Desktop (see [Claude Desktop Configuration](#claude-desktop-configuration) below).
+
+### Option 2: Build from Source (.NET 10.0 SDK required)
 
 #### Windows
 
@@ -125,24 +146,58 @@ English | [中文](../zh/getting-started.md)
    }
    ```
 
-### Option 2: Use Compiled Executable
+## Claude Desktop Configuration
 
-1. **Build Release Version**
-   ```bash
-   dotnet publish src/DotNetMcp.Server -c Release -o ./publish
-   ```
+### Using Pre-built Binary (Option 1)
 
-2. **Configure Claude Desktop**
-   ```json
-   {
-     "mcpServers": {
-       "dotnet-mcp": {
-         "command": "/path/to/publish/DotNetMcp.Server",
-         "args": ["--stdio"]
-       }
-     }
-   }
-   ```
+| OS | Config file location |
+|----|----------------------|
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+```json
+{
+  "mcpServers": {
+    "dotnet-mcp": {
+      "command": "/path/to/DotNetMcp.Server",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+Replace `/path/to/DotNetMcp.Server` with the actual path to the extracted executable.
+
+### Using Source Build (Option 2)
+
+```json
+{
+  "mcpServers": {
+    "dotnet-mcp": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "/path/to/DotNetMCP/src/DotNetMcp.Server",
+        "--",
+        "--stdio"
+      ]
+    }
+  }
+}
+```
+
+### Using Claude CLI
+
+```bash
+# Stdio mode — pre-built binary
+claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
+
+# HTTP mode — start server first
+dotnet run --project src/DotNetMcp.Server &
+claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
+```
 
 ## Running Modes
 

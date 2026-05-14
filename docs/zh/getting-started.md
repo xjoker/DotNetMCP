@@ -10,7 +10,28 @@
 
 ## 安装步骤
 
-### 方式一：从源码编译（推荐）
+### 方式一：下载预编译二进制（推荐，无需 .NET SDK）
+
+1. 前往 [GitHub Releases](https://github.com/xjoker/DotNetMCP/releases) 下载对应平台的 zip：
+
+   | 平台 | 文件 |
+   |------|------|
+   | Windows x64 | `DotNetMcp-win-x64.zip` |
+   | Linux x64 | `DotNetMcp-linux-x64.zip` |
+   | Linux ARM64 | `DotNetMcp-linux-arm64.zip` |
+   | macOS x64 | `DotNetMcp-osx-x64.zip` |
+   | macOS ARM64（Apple Silicon） | `DotNetMcp-osx-arm64.zip` |
+
+2. 解压到任意目录，得到单一自包含可执行文件：`DotNetMcp.Server`（Windows 为 `DotNetMcp.Server.exe`）。
+
+3. **仅 macOS/Linux** — 赋予执行权限：
+   ```bash
+   chmod +x /path/to/DotNetMcp.Server
+   ```
+
+4. 配置 Claude Desktop（见下方 [Claude Desktop 配置](#claude-desktop-配置)）。
+
+### 方式二：从源码编译（需要 .NET 10.0 SDK）
 
 #### Windows
 
@@ -125,24 +146,58 @@
    }
    ```
 
-### 方式二：使用已编译的可执行文件
+## Claude Desktop 配置
 
-1. **编译发布版本**
-   ```bash
-   dotnet publish src/DotNetMcp.Server -c Release -o ./publish
-   ```
+### 使用预编译二进制（方式一）
 
-2. **配置 Claude Desktop**
-   ```json
-   {
-     "mcpServers": {
-       "dotnet-mcp": {
-         "command": "/path/to/publish/DotNetMcp.Server",
-         "args": ["--stdio"]
-       }
-     }
-   }
-   ```
+| 系统 | 配置文件路径 |
+|------|------------|
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+```json
+{
+  "mcpServers": {
+    "dotnet-mcp": {
+      "command": "/path/to/DotNetMcp.Server",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+将 `/path/to/DotNetMcp.Server` 替换为实际解压路径。
+
+### 使用源码编译（方式二）
+
+```json
+{
+  "mcpServers": {
+    "dotnet-mcp": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "/path/to/DotNetMCP/src/DotNetMcp.Server",
+        "--",
+        "--stdio"
+      ]
+    }
+  }
+}
+```
+
+### 使用 Claude CLI
+
+```bash
+# Stdio 模式 — 预编译二进制
+claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
+
+# HTTP 模式 — 先启动服务
+dotnet run --project src/DotNetMcp.Server &
+claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
+```
 
 ## 运行模式
 

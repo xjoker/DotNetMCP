@@ -9,6 +9,7 @@ A .NET assembly reverse engineering and modification tool based on MCP (Model Co
 ## Documentation
 
 - [Getting Started](docs/en/getting-started.md)
+- [AI Usage Guide](docs/en/ai-usage-guide.md)
 - [Configuration](docs/en/configuration.md)
 - [Tools Reference](docs/en/tools-reference.md)
 
@@ -126,48 +127,60 @@ AI: [Call set_default_backend id="analysis-1"]
 
 ## Quick Start
 
-### Requirements
+### Option A: Download Pre-built Binary (No .NET SDK required)
 
-- .NET 10.0 SDK
+1. Go to [GitHub Releases](https://github.com/xjoker/DotNetMCP/releases) and download the zip for your platform:
 
-### Build
+   | Platform | File |
+   |----------|------|
+   | Windows x64 | `DotNetMcp-win-x64.zip` |
+   | Linux x64 | `DotNetMcp-linux-x64.zip` |
+   | Linux ARM64 | `DotNetMcp-linux-arm64.zip` |
+   | macOS x64 | `DotNetMcp-osx-x64.zip` |
+   | macOS ARM64 (Apple Silicon) | `DotNetMcp-osx-arm64.zip` |
+
+2. Extract the zip. You will find a single executable: `DotNetMcp.Server` (or `DotNetMcp.Server.exe` on Windows).
+
+3. **macOS/Linux only** — make it executable:
+   ```bash
+   chmod +x /path/to/DotNetMcp.Server
+   ```
+
+4. Configure Claude Desktop — add to `claude_desktop_config.json`:
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+   ```json
+   {
+     "mcpServers": {
+       "dotnet-mcp": {
+         "command": "/path/to/DotNetMcp.Server",
+         "args": ["--stdio"]
+       }
+     }
+   }
+   ```
+
+   Replace `/path/to/DotNetMcp.Server` with the actual path to the extracted executable.
+
+5. Restart Claude Desktop. The tools are now available.
+
+### Option B: Build from Source (.NET 10.0 SDK required)
 
 ```bash
+git clone https://github.com/xjoker/DotNetMCP.git
+cd DotNetMCP
 dotnet build
 ```
 
-### Running
-
-#### 1. Stdio Mode (Claude Desktop)
+Run in stdio mode (for Claude Desktop):
 
 ```bash
 dotnet run --project src/DotNetMcp.Server -- --stdio
 ```
 
-#### 2. HTTP Mode
-
-```bash
-dotnet run --project src/DotNetMcp.Server
-```
-
-The service will start at `http://localhost:5000`.
-
-### Claude Desktop Configuration
-
-#### Quick Setup with Claude CLI
-
-```bash
-# HTTP Mode (start the server first, then add)
-dotnet run --project src/DotNetMcp.Server &
-claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
-
-# Stdio Mode (using compiled executable)
-claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
-```
-
-#### Manual Configuration
-
-Add to `claude_desktop_config.json`:
+Configure Claude Desktop (source build):
 
 ```json
 {
@@ -186,17 +199,15 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-Or use the compiled executable:
+### Claude Code / Other MCP Clients
 
-```json
-{
-  "mcpServers": {
-    "dotnet-mcp": {
-      "command": "/path/to/DotNetMcp.Server",
-      "args": ["--stdio"]
-    }
-  }
-}
+```bash
+# Stdio mode — using the pre-built binary
+claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
+
+# HTTP mode — start server first, then register
+dotnet run --project src/DotNetMcp.Server &
+claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
 ```
 
 ## MCP Tools
@@ -376,26 +387,49 @@ DotNetMCP/
 
 ## Docker Deployment
 
+There is no pre-built Docker image published. Build the image from source:
+
 ### Build Image
 
 ```bash
+git clone https://github.com/xjoker/DotNetMCP.git
+cd DotNetMCP
 docker build -t dotnet-mcp .
 ```
 
 ### Run (HTTP Mode)
 
+The server runs in HTTP mode inside Docker. Mount the directory that contains the DLL/EXE files you want to analyze:
+
 ```bash
-docker run -p 5000:5000 dotnet-mcp
+docker run -p 5000:5000 \
+  -v /path/to/your/assemblies:/data \
+  dotnet-mcp
 ```
 
 The server will be available at `http://localhost:5000`.
 Health check endpoint: `http://localhost:5000/health`
 
+When loading assemblies inside Claude, use the container path (e.g. `/data/MyApp.dll`).
+
 ### Run with API Key
 
 ```bash
-docker run -p 5000:5000 -e API_KEYS="your-secret-key" dotnet-mcp
+docker run -p 5000:5000 \
+  -v /path/to/your/assemblies:/data \
+  -e API_KEYS="your-secret-key" \
+  dotnet-mcp
 ```
+
+### Connect Claude to the Docker Container
+
+After the container is running, register it as an MCP server:
+
+```bash
+claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
+```
+
+Or add to `claude_desktop_config.json` manually (HTTP transport is not supported by Claude Desktop's built-in MCP — use stdio binary instead for desktop use).
 
 ### Environment Variables
 
@@ -409,4 +443,4 @@ docker run -p 5000:5000 -e API_KEYS="your-secret-key" dotnet-mcp
 
 ## License
 
-MIT
+[MIT](LICENSE)

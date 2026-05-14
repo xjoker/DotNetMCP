@@ -9,6 +9,7 @@
 ## 文档
 
 - [快速开始指南](docs/zh/getting-started.md)
+- [AI 使用指南](docs/zh/ai-usage-guide.md)
 - [配置说明](docs/zh/configuration.md)
 - [工具参考](docs/zh/tools-reference.md)
 
@@ -126,48 +127,60 @@ AI: [调用 set_default_backend id="analysis-1"]
 
 ## 快速开始
 
-### 环境要求
+### 方式 A：下载预编译二进制（无需 .NET SDK）
 
-- .NET 10.0 SDK
+1. 前往 [GitHub Releases](https://github.com/xjoker/DotNetMCP/releases) 下载对应平台的 zip：
 
-### 编译
+   | 平台 | 文件 |
+   |------|------|
+   | Windows x64 | `DotNetMcp-win-x64.zip` |
+   | Linux x64 | `DotNetMcp-linux-x64.zip` |
+   | Linux ARM64 | `DotNetMcp-linux-arm64.zip` |
+   | macOS x64 | `DotNetMcp-osx-x64.zip` |
+   | macOS ARM64（Apple Silicon） | `DotNetMcp-osx-arm64.zip` |
+
+2. 解压 zip，得到单一可执行文件：`DotNetMcp.Server`（Windows 为 `DotNetMcp.Server.exe`）。
+
+3. **仅 macOS/Linux** — 赋予执行权限：
+   ```bash
+   chmod +x /path/to/DotNetMcp.Server
+   ```
+
+4. 配置 Claude Desktop，在 `claude_desktop_config.json` 中添加：
+   - **Windows**：`%APPDATA%\Claude\claude_desktop_config.json`
+   - **macOS**：`~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Linux**：`~/.config/Claude/claude_desktop_config.json`
+
+   ```json
+   {
+     "mcpServers": {
+       "dotnet-mcp": {
+         "command": "/path/to/DotNetMcp.Server",
+         "args": ["--stdio"]
+       }
+     }
+   }
+   ```
+
+   将 `/path/to/DotNetMcp.Server` 替换为实际解压路径。
+
+5. 重启 Claude Desktop，工具即可使用。
+
+### 方式 B：从源码编译（需要 .NET 10.0 SDK）
 
 ```bash
+git clone https://github.com/xjoker/DotNetMCP.git
+cd DotNetMCP
 dotnet build
 ```
 
-### 运行方式
-
-#### 1. Stdio 模式（Claude Desktop）
+Stdio 模式运行（用于 Claude Desktop）：
 
 ```bash
 dotnet run --project src/DotNetMcp.Server -- --stdio
 ```
 
-#### 2. HTTP 模式
-
-```bash
-dotnet run --project src/DotNetMcp.Server
-```
-
-服务将在 `http://localhost:5000` 启动。
-
-### Claude Desktop 配置
-
-#### 使用 Claude CLI 快速配置
-
-```bash
-# HTTP 模式（先启动服务，再添加）
-dotnet run --project src/DotNetMcp.Server &
-claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
-
-# Stdio 模式（使用编译后的可执行文件）
-claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
-```
-
-#### 手动配置
-
-在 `claude_desktop_config.json` 中添加：
+Claude Desktop 配置（源码编译版本）：
 
 ```json
 {
@@ -186,17 +199,15 @@ claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
 }
 ```
 
-或使用已编译的可执行文件：
+### Claude Code / 其他 MCP 客户端
 
-```json
-{
-  "mcpServers": {
-    "dotnet-mcp": {
-      "command": "/path/to/DotNetMcp.Server",
-      "args": ["--stdio"]
-    }
-  }
-}
+```bash
+# Stdio 模式 — 使用预编译二进制
+claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
+
+# HTTP 模式 — 先启动服务，再注册
+dotnet run --project src/DotNetMcp.Server &
+claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
 ```
 
 ## MCP 工具列表
@@ -376,25 +387,46 @@ DotNetMCP/
 
 ## Docker 部署
 
+目前没有预发布的 Docker 镜像，需要从源码构建：
+
 ### 构建镜像
 
 ```bash
+git clone https://github.com/xjoker/DotNetMCP.git
+cd DotNetMCP
 docker build -t dotnet-mcp .
 ```
 
 ### 运行（HTTP 模式）
 
+容器内以 HTTP 模式运行。需要挂载包含 DLL/EXE 文件的目录：
+
 ```bash
-docker run -p 5000:5000 dotnet-mcp
+docker run -p 5000:5000 \
+  -v /path/to/your/assemblies:/data \
+  dotnet-mcp
 ```
 
 服务将在 `http://localhost:5000` 启动。
 健康检查端点：`http://localhost:5000/health`
 
+在 Claude 中加载程序集时，使用容器内路径（例如 `/data/MyApp.dll`）。
+
 ### 带 API Key 运行
 
 ```bash
-docker run -p 5000:5000 -e API_KEYS="your-secret-key" dotnet-mcp
+docker run -p 5000:5000 \
+  -v /path/to/your/assemblies:/data \
+  -e API_KEYS="your-secret-key" \
+  dotnet-mcp
+```
+
+### 将 Claude 连接到 Docker 容器
+
+容器启动后，注册为 MCP server：
+
+```bash
+claude mcp add dotnet-mcp --transport http --url http://localhost:5000/mcp
 ```
 
 ### 环境变量
@@ -409,4 +441,4 @@ docker run -p 5000:5000 -e API_KEYS="your-secret-key" dotnet-mcp
 
 ## License
 
-MIT
+[MIT](LICENSE)
