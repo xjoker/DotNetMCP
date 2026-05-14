@@ -508,6 +508,346 @@
 
 ---
 
+### get_dependency_graph
+
+构建程序集依赖图，支持程序集、命名空间、类型三档粒度，返回节点/边统计和 Mermaid 可视化字符串。
+
+**使用场景：**
+- 了解程序集引用了哪些外部程序集
+- 分析命名空间之间的耦合关系
+- 可视化某个类型的继承/引用关系树
+
+**AI 对话示例：**
+> "显示这个程序集的依赖图"
+>
+> "用 Mermaid 展示 MyApp.Services.UserService 的类型依赖关系"
+>
+> "分析命名空间间的耦合"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `level` | string | 否 | 粒度：assembly（默认）、namespace、type |
+| `rootType` | string | 否 | level=type 时必填，根类型完整名（如 `MyNamespace.MyClass`） |
+| `maxDepth` | int | 否 | level=type 时的最大遍历深度（默认 3，最大 10） |
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `level` - 所用粒度
+- `rootId` - 根节点 ID
+- `totalNodes` / `externalNodes` / `totalEdges` - 图统计
+- `mermaid` - Mermaid 图表字符串
+
+---
+
+### detect_design_patterns
+
+检测程序集中的设计模式，支持 Singleton、Factory、AbstractFactory、Observer、Builder、Strategy、Decorator。
+
+**使用场景：**
+- 快速了解代码架构风格
+- 逆向时识别已知模式，辅助理解代码意图
+
+**AI 对话示例：**
+> "这个程序集用了哪些设计模式？"
+>
+> "检测 UserService 是否实现了 Singleton 模式"
+>
+> "扫描整个程序集的设计模式"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `typeName` | string | 否 | 指定类型名；不填则扫描整个程序集 |
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `totalCount` - 检测到的模式总数
+- `summary` - 文本摘要
+- `patterns[]` - 每条结果含 patternType、typeName、confidence、evidence[]、relatedTypes[]
+
+---
+
+### enhanced_search
+
+完整搜索引擎暴露，支持正则、+include/-exclude 过滤、精确匹配、模糊匹配、Metadata Token 查找、字面量自动检测。
+
+**使用场景：**
+- 复杂搜索条件（多词 +/-、正则）
+- 按 Metadata Token 精确定位
+- 跨类型/成员/字面量统一搜索
+
+**AI 对话示例：**
+> "搜索名称包含 Auth 但不含 Test 的类型：+Auth -Test"
+>
+> "用正则搜索所有 Get 开头的方法：/^Get/"
+>
+> "搜索字面量字符串 'https://api.example.com'"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `query` | string | 是 | 查询字符串，支持高级语法（见说明） |
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `mode` | string | 否 | 搜索模式：auto（默认）、type、member、method、field、property、event、literal、token |
+| `namespaceFilter` | string | 否 | 按命名空间前缀过滤 |
+| `limit` | int | 否 | 最大结果数（默认 100，上限 1000） |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**查询语法说明：**
+- `keyword` — 普通关键词（大小写不敏感）
+- `+include -exclude` — 包含/排除过滤
+- `=exact` — 精确匹配
+- `~fuzzy` — 模糊匹配
+- `/regex/` — 正则表达式
+- `0xToken` — Metadata Token 查找
+
+**返回字段：**
+- `items[]` - 结果列表，每项含 id、name、fullName、kind、declaringType、namespace、value、relevance
+- `totalCount` / `hasMore` / `durationMs` / `mode`
+
+---
+
+### find_base_types
+
+查找类型的完整基类链和接口列表。
+
+**使用场景：**
+- 了解类型继承树
+- 分析类型实现了哪些接口
+- 识别外部依赖的基础类型
+
+**AI 对话示例：**
+> "UserService 的基类链是什么？"
+>
+> "MyClass 实现了哪些接口？"
+>
+> "查找 OrderProcessor 的所有基类"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `typeName` | string | 是 | 完整类型名（如 `MyNamespace.MyClass`） |
+| `includeInterfaces` | bool | 否 | 是否包含接口（默认 true） |
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `types[]` - 每项含 id、fullName、namespace、kind、isExternal（外部程序集类型）
+- `totalCount`
+
+---
+
+### find_derived_types
+
+查找所有继承自指定类型（或实现指定接口）的派生类型。
+
+**使用场景：**
+- 找出所有子类
+- 分析多态实现
+- 找接口的所有间接实现
+
+**AI 对话示例：**
+> "哪些类继承了 BaseController？"
+>
+> "IRepository 接口有哪些实现（包括间接实现）？"
+>
+> "只给我 Animal 的直接子类"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `typeName` | string | 是 | 基类型或接口完整名 |
+| `directOnly` | bool | 否 | 仅返回直接子类（默认 false = 递归全部） |
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `types[]` - 含 id、fullName、namespace、kind、isExternal
+- `totalCount`
+
+---
+
+### get_implementations
+
+查找直接实现指定接口的所有类型。
+
+**使用场景：**
+- 快速找到接口的直接实现类
+- 与 find_derived_types 配合覆盖间接实现
+
+**AI 对话示例：**
+> "IUserRepository 有哪些实现？"
+>
+> "找出所有直接实现 IService 接口的类"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `interfaceTypeName` | string | 是 | 接口完整名（如 `MyNamespace.IService`） |
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `types[]` - 含 id、fullName、namespace、kind、isExternal
+- `totalCount`
+
+---
+
+### get_overrides
+
+查找虚方法或抽象方法在所有派生类型中的覆盖实现。
+
+**使用场景：**
+- 分析虚方法的所有入口点
+- 找出多态分发的所有目标
+
+**AI 对话示例：**
+> "Execute 方法有哪些覆盖实现？"
+>
+> "BaseHandler.Handle 方法在派生类里都有哪些实现？"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `typeName` | string | 是 | 声明类型完整名 |
+| `methodName` | string | 是 | 虚方法或抽象方法名 |
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `methods[]` - 每项含 id、typeFullName、methodName、signature
+- `totalCount`
+
+---
+
+### get_overloads
+
+查找同一类型中指定方法名的所有重载。
+
+**使用场景：**
+- 方法名模糊时确认正确签名
+- 调用 decompile_method 前确认重载版本
+
+**AI 对话示例：**
+> "Parse 方法有哪些重载？"
+>
+> "列出 UserService.GetUser 的所有重载"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `typeName` | string | 是 | 类型完整名 |
+| `methodName` | string | 是 | 方法名 |
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `methods[]` - 每项含 id、typeFullName、methodName、signature
+- `totalCount`
+
+---
+
+### detect_obfuscation
+
+检测程序集是否被混淆，识别混淆器，返回 0-100 评分、置信度及混淆指标。
+
+**使用场景：**
+- 逆向前判断是否需要先去混淆
+- 识别混淆器类型以选择合适的反混淆工具
+
+**AI 对话示例：**
+> "这个程序集被混淆了吗？"
+>
+> "检测混淆情况，告诉我用了什么混淆器"
+>
+> "分析程序集的混淆程度"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `mvid` | string | 否 | 指定程序集 MVID |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `isObfuscated` - 是否被混淆
+- `obfuscationScore` - 混淆评分（0-100）
+- `confidence` - 置信度（Low/Medium/High）
+- `detectedObfuscators[]` - 识别到的混淆器名称
+- `topIndicators[]` - Top 10 指标，每项含 category、severity、description、location
+- `stats` - 统计数据（类型数、方法数、短名称数、无效名称数、控制流平坦化数、代理方法数等）
+
+---
+
+### warm_index
+
+预构建类型和成员索引，加速后续查询。
+
+**使用场景：**
+- 对大型程序集进行重度分析前提前预热索引
+- 减少批量分析场景中第一次查询的延迟
+- 索引默认在首次访问时按需构建，此工具提供显式预热入口
+
+**AI 对话示例：**
+> "在开始分析之前先预热这个程序集的索引"
+>
+> "把类型索引现在构建好，这样查询会更快"
+>
+> "用 30 秒时间预热索引"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `mvid` | string | 否 | 程序集 MVID 或 alias，省略则使用默认程序集 |
+| `typeIndex` | bool | 否 | 是否构建类型索引（默认 true） |
+| `memberIndex` | bool | 否 | 是否构建成员索引（默认 true） |
+| `maxSeconds` | int | 否 | 软超时秒数，超出后跳过成员索引构建 |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `typeIndexBuilt` - 类型索引是否已构建
+- `memberIndexBuilt` - 成员索引是否已构建
+- `typeCount` - 已索引的类型数量
+- `memberCount` - 已索引的成员数量
+- `elapsedMs` - 耗时（毫秒）
+- `maxSecondsExceeded` - 是否超出了软超时限制
+
+---
+
+## 程序集管理工具（扩展）
+
+### detect_unity_assembly
+
+探测 Unity 游戏目录中的 Assembly-CSharp.dll，支持 Windows/macOS/Linux Unity 目录布局。
+
+**使用场景：**
+- Unity 游戏逆向工程时自动定位主程序集
+- 不确定 DLL 具体路径时使用
+
+**AI 对话示例：**
+> "在 /path/to/MyGame 里找到 Unity 程序集"
+>
+> "我有一个 Unity 游戏，帮我找到 Assembly-CSharp.dll"
+>
+> "这个游戏目录下有哪些托管程序集？"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `gameRootPath` | string | 是 | Unity 游戏根目录或 .app bundle 路径 |
+
+**返回字段：**
+- `assemblyCSharpPath` - Assembly-CSharp.dll 完整路径
+- `managedDirectory` - Managed 目录路径
+- `gameName` - 游戏名称
+- `platform` - 检测到的平台（Windows/macOS/Linux）
+- `unityVersion` - Unity 版本（如可读取）
+- `managedAssemblies[]` - 所有托管 DLL 路径列表
+
+---
+
 ## 修改工具
 
 ### inject_at_entry
@@ -655,6 +995,48 @@
 
 ---
 
+### replace_method_body_with_csharp
+
+用 C# 源码替换方法体，而不需要手写 IL 指令。
+
+**使用场景：**
+- 不懂 IL 操作码也能修改方法逻辑
+- 用简洁的 C# 为方法打桩（如始终返回 true）
+- 修改或覆盖现有程序集中的方法实现
+
+**AI 对话示例：**
+> "用 C# 把 GetVersion 改为返回 '2.0'"
+>
+> "让 IsLicenseValid 始终返回 true，用 C# 写"
+>
+> "替换 ValidateInput 方法体：if (input == null) return false; return input.Length > 0;"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `methodFullName` | string | 是 | 完整方法名，例如 `"MyNamespace.MyClass::MyMethod"` 或 `"MyNamespace.MyClass.MyMethod"` |
+| `csharpBody` | string | 是 | C# 方法体（不含签名），例如 `"return x + 1;"` |
+| `mvid` | string | 否 | 程序集 MVID 或 alias，省略则使用默认程序集 |
+| `usings` | string[] | 否 | 额外的 using 命名空间（默认 System、System.Collections.Generic、System.Linq、System.Text） |
+| `allowUnsafe` | bool | 否 | 允许 unsafe C# 代码（默认 false） |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段（成功）：**
+- `success` - true
+- `message` - 包含替换 IL 指令数的确认信息
+- `instructionsReplaced` - 替换后的 IL 指令数
+
+**返回字段（失败）：**
+- `success` - false
+- `error` - 错误信息
+- `diagnostics[]` - Roslyn 编译诊断，格式 `[Severity] ErrorId (line N): message`
+
+**注意：**
+- 方法体会用 Roslyn 编译，使用目标方法的参数名和返回类型
+- 替换后需调用 `save_assembly` 将变更持久化到磁盘
+
+---
+
 ## 后端管理工具
 
 ### list_backends
@@ -755,6 +1137,116 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `backendId` | string | 否 | 后端 ID（为空则检查所有） |
+
+---
+
+## 程序集 Alias 管理工具
+
+Alias 允许你为已加载程序集的 MVID 注册一个简短的可读名称。注册后，所有接受 `mvid` 参数的工具都可以用 alias 代替 32 位 GUID。Alias 会持久化到磁盘（Linux：`~/.local/share/dotnet-mcp/aliases.json`，macOS：`~/Library/Application Support/dotnet-mcp/aliases.json`，Windows：`%LOCALAPPDATA%\dotnet-mcp\aliases.json`），可通过 `instance_restore_persisted` 在跨会话中恢复。
+
+**Alias 命名规则：** 1–32 个字符，字符集 `[A-Za-z0-9_-]`，不能全为数字，不能是保留字（`default`、`local`、`null`）。
+
+---
+
+### register_assembly_alias
+
+为已加载程序集的 MVID 注册短 alias。
+
+**使用场景：**
+- 给程序集起一个易记的名字（如 `"main"`）替代 GUID
+- 配合 `instance_restore_persisted` 实现跨会话引用
+
+**AI 对话示例：**
+> "把当前程序集注册为 alias 'main'"
+>
+> "把这个程序集 alias 命名为 'target'"
+>
+> "注册 mvid abc123... 为 'v2'，如已存在则覆盖"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `alias` | string | 是 | 短 alias（1–32 字符，`[A-Za-z0-9_-]`，非保留字） |
+| `mvid` | string | 否 | 要绑定的程序集 MVID，省略则使用当前默认程序集 |
+| `overwrite` | bool | 否 | 若为 true，覆盖同名 alias（默认 false） |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `alias` - 已注册的 alias 名称
+- `mvid` - 绑定的 MVID
+
+---
+
+### unregister_assembly_alias
+
+删除已注册的 alias。
+
+**使用场景：**
+- 清理过期 alias
+- 释放 alias 名称以便重新使用
+
+**AI 对话示例：**
+> "删除 alias 'main'"
+>
+> "取消注册 'target' alias"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `alias` | string | 是 | 要删除的 alias |
+| `backendId` | string | 否 | 指定后端 ID |
+
+**注意：**
+- 底层程序集保持已加载状态，仅删除 alias 映射。
+
+---
+
+### list_assembly_aliases
+
+列出当前后端所有已注册的 alias。
+
+**使用场景：**
+- 查看当前有哪些 alias 可用
+- 分析前确认 alias → MVID 映射关系
+
+**AI 对话示例：**
+> "列出所有程序集 alias"
+>
+> "查看已注册的 alias"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `aliases[]` - `{ alias, mvid }` 对象数组
+
+---
+
+### instance_restore_persisted
+
+从上次会话持久化到磁盘的 alias 条目中重新加载程序集。
+
+**使用场景：**
+- 跨会话恢复工作状态，无需手动重新加载程序集
+- 从上次对话中恢复已知工作区
+
+**AI 对话示例：**
+> "恢复上次会话的程序集"
+>
+> "从持久化的 alias 加载程序集"
+
+**参数：**
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `backendId` | string | 否 | 指定后端 ID |
+
+**返回字段：**
+- `restoredCount` - 成功恢复的程序集数量
+
+**注意：**
+- 无法恢复的条目（文件不存在、路径无效）会自动从持久化文件中删除。
 
 ---
 

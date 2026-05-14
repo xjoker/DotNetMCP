@@ -1,0 +1,37 @@
+# Build artifacts
+**/bin/
+**/obj/
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# IDE / editor
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userprefs
+.editorconfig
+
+# Tests (not needed in production image)
+tests/
+
+# Docs and meta
+docs/
+.github/
+.AIINFO/
+.claude/
+AGENTS.md
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+
+# Solution file (not needed at runtime)
+*.sln
+
+# Markdown (keep README out of image)
+*.md

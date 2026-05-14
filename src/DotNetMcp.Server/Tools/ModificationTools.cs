@@ -3,6 +3,7 @@ using ModelContextProtocol.Server;
 using DotNetMcp.Server.Backend;
 using DotNetMcp.Backend.Services;
 using DotNetMcp.Backend.Core.Analysis;
+using RoslynPatchResult = DotNetMcp.Backend.Core.Modification.RoslynPatchResult;
 
 namespace DotNetMcp.Server.Tools;
 
@@ -29,11 +30,8 @@ public sealed class ModificationTools
         [Description("Optional MVID of the assembly")] string? mvid = null,
         [Description("Optional backend ID")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new InjectionToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new InjectionToolResult { Success = false, Error = err };
 
         var request = new InjectionRequest
         {
@@ -66,11 +64,8 @@ public sealed class ModificationTools
         [Description("Optional MVID of the assembly")] string? mvid = null,
         [Description("Optional backend ID")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new InjectionToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new InjectionToolResult { Success = false, Error = err };
 
         var request = new InjectionRequest
         {
@@ -104,11 +99,8 @@ public sealed class ModificationTools
         [Description("Optional MVID of the assembly")] string? mvid = null,
         [Description("Optional backend ID")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new AddTypeToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new AddTypeToolResult { Success = false, Error = err };
 
         var request = new TypeCreationRequest
         {
@@ -137,11 +129,8 @@ public sealed class ModificationTools
         [Description("Optional MVID of the assembly")] string? mvid = null,
         [Description("Optional backend ID")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new SaveAssemblyToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new SaveAssemblyToolResult { Success = false, Error = err };
 
         var result = await backend.SaveAssemblyAsync(mvid ?? "", outputPath);
         return new SaveAssemblyToolResult
@@ -151,6 +140,40 @@ public sealed class ModificationTools
             Error = result.IsSuccess ? null : (result.ErrorCode != null
                 ? $"[{result.ErrorCode}] {result.ErrorMessage}"
                 : result.ErrorMessage)
+        };
+    }
+
+    /// <summary>
+    /// 用 C# 源码替换方法体（Roslyn 编译 + Cecil 注入）
+    /// </summary>
+    [McpServerTool(Name = "replace_method_body_with_csharp"), Description("Replace a method body using C# source code instead of raw IL. Roslyn compiles the snippet, Cecil merges resulting IL into the target. Far easier than writing IL by hand. Returns compilation diagnostics if the C# fails to compile.")]
+    public async Task<RoslynPatchToolResult> ReplaceMethodBodyWithCSharp(
+        [Description("Full name of the method, e.g. 'MyNamespace.MyClass::MyMethod' or 'MyNamespace.MyClass.MyMethod'")] string methodFullName,
+        [Description("C# method body (without the signature). Example: 'return x + 1;' or 'Console.WriteLine(\"hello\"); return 0;'")] string csharpBody,
+        [Description("Optional MVID of the assembly. Omit to use the default loaded assembly.")] string? mvid = null,
+        [Description("Optional extra using namespaces. Defaults to System, System.Collections.Generic, System.Linq, System.Text.")] string[]? usings = null,
+        [Description("Allow unsafe C# code in the snippet (default false).")] bool allowUnsafe = false,
+        [Description("Optional backend ID")] string? backendId = null)
+    {
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new RoslynPatchToolResult { Success = false, Error = err };
+
+        var result = await backend.ReplaceMethodBodyWithCSharpAsync(mvid ?? "", methodFullName, csharpBody, usings, allowUnsafe);
+        if (result.IsSuccess)
+        {
+            return new RoslynPatchToolResult
+            {
+                Success = true,
+                Message = $"Method body replaced with {result.InstructionsReplaced} IL instructions",
+                InstructionsReplaced = result.InstructionsReplaced
+            };
+        }
+
+        return new RoslynPatchToolResult
+        {
+            Success = false,
+            Error = result.ErrorMessage,
+            Diagnostics = result.Diagnostics?.Select(d => $"[{d.Severity}] {d.Id} (line {d.Location}): {d.Message}").ToArray()
         };
     }
 
@@ -165,9 +188,8 @@ public sealed class ModificationTools
         [Description("MVID of the assembly. Omit to use the default loaded assembly.")] string? mvid = null,
         [Description("Optional backend ID")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-            return new PatchSkeletonToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new PatchSkeletonToolResult { Success = false, Error = err };
 
         var kinds = patchKinds.Split(',').Select(k => k.Trim()).ToArray();
         var result = await backend.GeneratePatchSkeletonAsync(mvid ?? "", typeName, methodName, kinds);
@@ -220,4 +242,13 @@ public record SaveAssemblyToolResult
     public bool Success { get; init; }
     public string? Path { get; init; }
     public string? Error { get; init; }
+}
+
+public record RoslynPatchToolResult
+{
+    public bool Success { get; init; }
+    public string? Message { get; init; }
+    public int? InstructionsReplaced { get; init; }
+    public string? Error { get; init; }
+    public string[]? Diagnostics { get; init; }
 }

@@ -18,6 +18,12 @@ AI 静态逆向工程 MCP 服务，使 AI 能够自主进行 .NET 程序集的�
 3. 核心服务层 → 索引/反编译/修改/验证
 4. 基础设施层 → ID/分页/切片/事务
 
+### 新增模块（Wave 6+）
+
+- **Roslyn Patch 模块**（`ModificationTools.cs`）：`replace_method_body_with_csharp` 通过 Roslyn 编译 C# 片段，再由 Cecil 将生成的 IL 合并回目标方法，无需手写 IL 操作码。
+- **Workspace Alias 模块**（`InstanceTools.cs`）：`register_assembly_alias` / `unregister_assembly_alias` / `list_assembly_aliases` / `instance_restore_persisted` 提供 MVID 短名映射，alias 持久化到 LocalAppData/`dotnet-mcp/aliases.json`，支持跨会话恢复。
+- **Lazy 索引 / 预热**（`AnalysisTools.cs`）：搜索和分析类工具自动使用缓存索引；`warm_index` 提供显式预热入口，支持软超时（`maxSeconds`）。
+
 ## 开发约定
 
 ### 项目结构

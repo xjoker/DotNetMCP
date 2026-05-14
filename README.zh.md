@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-> **v0.0.2** - 纯 C# 架构，MCP Server 与 Backend 统一
+> **v0.0.3** - 纯 C# 架构，MCP Server 与 Backend 统一
 
 基于 MCP (Model Context Protocol) 的 .NET 程序集逆向工程和修改工具。
 
@@ -18,8 +18,12 @@ DotNet MCP 是一个为 AI 助手（如 Claude）提供 .NET 程序集分析和�
 
 - 加载和分析 .NET 程序集（DLL/EXE）
 - 反编译类型和方法为 C# 源码或 IL
-- 搜索类型、方法和字符串
-- 分析调用图和控制流图
+- 搜索类型、方法和字符串（支持正则 / 高级语法）
+- 分析调用图、控制流图和依赖图
+- 检测继承关系、接口实现、方法覆盖
+- 检测设计模式（Singleton、Factory、Observer 等）
+- 检测程序集混淆并识别混淆器
+- 自动探测 Unity 游戏目录
 - 注入代码和修改程序集
 
 ## 架构
@@ -32,7 +36,7 @@ flowchart TB
     Client -->|"MCP Protocol (stdio/HTTP)"| Server
 
     subgraph Server["DotNetMcp.Server"]
-        Tools["MCP Tools (25个)<br/>Assembly | Search | Analysis | Modification | Instance"]
+        Tools["MCP Tools (41个)<br/>Assembly | Search | Analysis | Modification | Instance"]
         Registry["Backend Registry<br/>(Local / Remote)"]
         Tools --> Registry
     end
@@ -197,13 +201,14 @@ claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
 
 ## MCP 工具列表
 
-### 程序集管理 (3)
+### 程序集管理 (4)
 
 | 工具 | 说明 |
 |------|------|
 | `load_assembly` | 加载 .NET 程序集 |
 | `list_assemblies` | 列出已加载的程序集 |
 | `unload_assembly` | 卸载程序集 |
+| `detect_unity_assembly` | 自动探测 Unity 游戏目录中的 Assembly-CSharp.dll |
 
 ### 搜索工具 (2)
 
@@ -212,32 +217,45 @@ claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
 | `search_types` | 按关键词搜索类型 |
 | `search_strings` | 搜索字符串字面量 |
 
-### 分析工具 (10)
+### 分析工具 (20)
 
 | 工具 | 说明 |
 |------|------|
 | `decompile_type` | 反编译类型为 C#/IL（支持 PDB 原始源码） |
-| `decompile_method` | 反编译方法 |
+| `decompile_method` | 精确反编译单个方法 |
 | `find_type_references` | 查找类型引用 |
 | `find_method_calls` | 查找方法调用 |
 | `get_call_graph` | 构建调用图 |
-| `get_control_flow_graph` | 构建控制流图 |
+| `get_control_flow_graph` | 构建控制流图（含 Mermaid） |
 | `get_type_outline` | 获取类型元数据大纲（无需反编译） |
 | `plan_chunking` | 规划 LLM 友好的源码分块方案 |
 | `compare_assemblies` | 对比两个程序集的结构差异 |
 | `batch_decompile` | 批量反编译多个成员 |
+| `get_dependency_graph` | 构建程序集/命名空间/类型依赖图（含 Mermaid） |
+| `detect_design_patterns` | 检测 Singleton、Factory、Observer 等设计模式 |
+| `find_base_types` | 查找类型的基类链和接口 |
+| `find_derived_types` | 查找继承自指定类型的所有派生类型 |
+| `get_implementations` | 查找接口的所有实现类型 |
+| `get_overrides` | 查找虚方法/抽象方法的所有覆盖实现 |
+| `get_overloads` | 查找方法的所有重载 |
+| `enhanced_search` | 统一搜索入口，支持正则 / +/-/ 精确 / 模糊 / Token 等高级语法 |
+| `detect_obfuscation` | 混淆检测，识别混淆器，0-100 评分 |
+| `warm_index` | 预构建类型和成员索引，加速后续查询 |
 
-### 修改工具 (5)
+### 修改工具 (6)
 
 | 工具 | 说明 |
 |------|------|
 | `inject_at_entry` | 在方法入口注入代码 |
-| `replace_method_body` | 替换方法体 |
+| `replace_method_body` | 用原始 IL 指令替换方法体 |
+| `replace_method_body_with_csharp` | 用 C# 源码替换方法体（Roslyn 编译 + Cecil 合并） |
 | `add_type` | 添加新类型 |
 | `save_assembly` | 保存修改后的程序集 |
 | `generate_patch_skeleton` | 生成 Harmony Patch 骨架代码 |
 
-### 实例管理 (5)
+### 实例管理
+
+#### 后端管理 (5)
 
 | 工具 | 说明 |
 |------|------|
@@ -246,6 +264,15 @@ claude mcp add dotnet-mcp -- /path/to/DotNetMcp.Server --stdio
 | `unregister_backend` | 注销后端 |
 | `set_default_backend` | 设置默认后端 |
 | `check_backend_health` | 检查后端健康状态 |
+
+#### 程序集 Alias 管理 (4)
+
+| 工具 | 说明 |
+|------|------|
+| `register_assembly_alias` | 为已加载程序集的 MVID 注册短 alias |
+| `unregister_assembly_alias` | 删除已注册的 alias |
+| `list_assembly_aliases` | 列出所有已注册的 alias（alias → MVID 映射） |
+| `instance_restore_persisted` | 从上次会话持久化的 alias 恢复程序集 |
 
 ## 使用示例
 
@@ -346,6 +373,39 @@ DotNetMCP/
 - **Mono.Cecil** - 程序集操作
 - **ICSharpCode.Decompiler** - 反编译
 - **Microsoft.CodeAnalysis** - Roslyn 编译
+
+## Docker 部署
+
+### 构建镜像
+
+```bash
+docker build -t dotnet-mcp .
+```
+
+### 运行（HTTP 模式）
+
+```bash
+docker run -p 5000:5000 dotnet-mcp
+```
+
+服务将在 `http://localhost:5000` 启动。
+健康检查端点：`http://localhost:5000/health`
+
+### 带 API Key 运行
+
+```bash
+docker run -p 5000:5000 -e API_KEYS="your-secret-key" dotnet-mcp
+```
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `ASPNETCORE_URLS` | `http://+:5000` | 监听地址 |
+| `API_KEYS` | *(无)* | 逗号分隔的 API Key 列表，用于认证 |
+| `TZ` | `UTC` | 时区 |
+
+> **注意**：Stdio 模式（`--stdio`）不适用于 Docker 容器。请使用 HTTP 模式，通过 `http://localhost:5000/mcp` 连接 Claude。
 
 ## License
 

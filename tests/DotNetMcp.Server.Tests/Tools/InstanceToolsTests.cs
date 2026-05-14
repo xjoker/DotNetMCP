@@ -218,7 +218,8 @@ public class InstanceToolsTests
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Backend not found", result.Error);
+        Assert.Contains("not found", result.Error);
+        Assert.Contains("nonexistent", result.Error);
     }
 
     [Fact]

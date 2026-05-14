@@ -23,10 +23,8 @@ public class ApiKeyAuthMiddleware
         _next = next;
         _logger = logger;
 
-        // 从环境变量或配置加载 API Keys
-        var apiKeysConfig = configuration.GetValue<string>("API_KEYS") 
-            ?? Environment.GetEnvironmentVariable("API_KEYS")
-            ?? "";
+        // 从配置加载 API Keys（IConfiguration 已自动映射环境变量）
+        var apiKeysConfig = configuration["API_KEYS"] ?? "";
         
         _validApiKeys = apiKeysConfig
             .Split(',', StringSplitOptions.RemoveEmptyEntries)

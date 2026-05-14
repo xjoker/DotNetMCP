@@ -885,6 +885,142 @@ public class AnalysisController : ControllerBase
 
     #endregion
 
+    #region 增强搜索
+
+    /// <summary>
+    /// 增强搜索 - 支持正则、高级语法（+/-/=/~）、Token、字面量等全能搜索
+    /// </summary>
+    [HttpGet("enhanced-search")]
+    public IActionResult EnhancedSearch(
+        [FromQuery] string query,
+        [FromQuery] string mode = "auto",
+        [FromQuery] string? @namespace = null,
+        [FromQuery] int limit = 100,
+        [FromQuery] string? mvid = null)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return BadRequest(new { success = false, error_code = "INVALID_QUERY", message = "query cannot be empty" });
+        }
+
+        if (limit < 1 || limit > 1000)
+        {
+            limit = Math.Clamp(limit, 1, 1000);
+        }
+
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded. Use assembly/load to load one first." });
+        }
+
+        var module = context.Assembly?.MainModule;
+        if (module == null)
+        {
+            return BadRequest(new { success = false, error_code = "MODULE_NOT_LOADED", message = "Assembly module is not available." });
+        }
+
+        var parsedMode = (string.IsNullOrEmpty(mode) || string.Equals(mode, "auto", StringComparison.OrdinalIgnoreCase))
+            ? SearchMode.TypeAndMember
+            : Enum.TryParse<SearchMode>(mode, true, out var m) ? m : SearchMode.TypeAndMember;
+
+        var service = new EnhancedSearchService(context.Mvid);
+        var result = service.Search(module, query, parsedMode, @namespace, limit);
+
+        return Ok(result);
+    }
+
+    #endregion
+
+    #region 继承分析
+
+    /// <summary>
+    /// 查找类型的所有基类链（含接口）
+    /// </summary>
+    [HttpGet("inheritance/base-types/{typeName}")]
+    public IActionResult FindBaseTypes(string typeName, [FromQuery] bool includeInterfaces = true, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+
+        var result = _analysisService.FindBaseTypes(context, Uri.UnescapeDataString(typeName), includeInterfaces);
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error_code = "INHERITANCE_FAILED", message = result.ErrorMessage });
+
+        return Ok(new { success = true, data = new { types = result.Types, total_count = result.TotalCount } });
+    }
+
+    /// <summary>
+    /// 查找继承自指定类型的所有派生类型
+    /// </summary>
+    [HttpGet("inheritance/derived-types/{typeName}")]
+    public IActionResult FindDerivedTypes(string typeName, [FromQuery] bool directOnly = false, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+
+        var result = _analysisService.FindDerivedTypes(context, Uri.UnescapeDataString(typeName), directOnly);
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error_code = "INHERITANCE_FAILED", message = result.ErrorMessage });
+
+        return Ok(new { success = true, data = new { types = result.Types, total_count = result.TotalCount } });
+    }
+
+    /// <summary>
+    /// 查找接口的所有实现
+    /// </summary>
+    [HttpGet("inheritance/implementations/{interfaceTypeName}")]
+    public IActionResult GetImplementations(string interfaceTypeName, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+
+        var result = _analysisService.GetImplementations(context, Uri.UnescapeDataString(interfaceTypeName));
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error_code = "INHERITANCE_FAILED", message = result.ErrorMessage });
+
+        return Ok(new { success = true, data = new { types = result.Types, total_count = result.TotalCount } });
+    }
+
+    /// <summary>
+    /// 查找方法的所有覆盖
+    /// </summary>
+    [HttpGet("inheritance/overrides/{typeName}/{methodName}")]
+    public IActionResult GetOverrides(string typeName, string methodName, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+
+        var result = _analysisService.GetOverrides(context, Uri.UnescapeDataString(typeName), Uri.UnescapeDataString(methodName));
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error_code = "INHERITANCE_FAILED", message = result.ErrorMessage });
+
+        return Ok(new { success = true, data = new { methods = result.Methods, total_count = result.TotalCount } });
+    }
+
+    /// <summary>
+    /// 查找方法的所有重载
+    /// </summary>
+    [HttpGet("inheritance/overloads/{typeName}/{methodName}")]
+    public IActionResult GetOverloads(string typeName, string methodName, [FromQuery] string? mvid = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded" });
+
+        var result = _analysisService.GetOverloads(context, Uri.UnescapeDataString(typeName), Uri.UnescapeDataString(methodName));
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error_code = "INHERITANCE_FAILED", message = result.ErrorMessage });
+
+        return Ok(new { success = true, data = new { methods = result.Methods, total_count = result.TotalCount } });
+    }
+
+    #endregion
+
     #region 批量反编译
 
     /// <summary>
@@ -952,6 +1088,39 @@ public class AnalysisController : ControllerBase
                 processed = items.Count,
                 requested = request.MemberKeys.Count
             }
+        });
+    }
+
+    #endregion
+
+    #region 索引预热
+
+    /// <summary>
+    /// 预热类型和成员索引
+    /// </summary>
+    [HttpPost("warm-index")]
+    public IActionResult WarmIndex([FromQuery] string? mvid = null, [FromQuery] bool typeIndex = true, [FromQuery] bool memberIndex = true, [FromQuery] int? maxSeconds = null)
+    {
+        var context = _assemblyManager.Get(mvid);
+        if (context == null)
+        {
+            return BadRequest(new { success = false, error_code = "NO_ASSEMBLY_LOADED", message = "No assembly loaded. Use assembly/load to load one first." });
+        }
+
+        var result = _analysisService.WarmIndex(context, typeIndex, memberIndex, maxSeconds);
+        return Ok(new
+        {
+            success = result.IsSuccess,
+            data = result.IsSuccess ? (object)new
+            {
+                type_index_built = result.TypeIndexBuilt,
+                member_index_built = result.MemberIndexBuilt,
+                type_count = result.TypeCount,
+                member_count = result.MemberCount,
+                elapsed_ms = result.ElapsedMs,
+                max_seconds_exceeded = result.MaxSecondsExceeded
+            } : null,
+            message = result.IsSuccess ? null : result.ErrorMessage
         });
     }
 

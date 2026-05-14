@@ -528,6 +528,346 @@ Decompile multiple types or methods in a single call with a character budget.
 
 ---
 
+### get_dependency_graph
+
+Build a dependency graph for a loaded assembly at three granularities. Returns node/edge statistics and a Mermaid diagram string for visualization.
+
+**Use Cases:**
+- Understand which external assemblies are referenced
+- Analyze inter-namespace coupling
+- Visualize a type's inheritance and reference relationships
+
+**AI Conversation Examples:**
+> "Show the dependency graph for this assembly"
+>
+> "Visualize type dependencies for MyApp.Services.UserService using Mermaid"
+>
+> "Analyze namespace coupling"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `level` | string | No | Granularity: assembly (default), namespace, or type |
+| `rootType` | string | No | Required when level=type; full type name (e.g. `MyNamespace.MyClass`) |
+| `maxDepth` | int | No | Max traversal depth for level=type (default 3, max 10) |
+| `mvid` | string | No | Specific assembly MVID |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `level` - granularity used
+- `rootId` - root node ID
+- `totalNodes` / `externalNodes` / `totalEdges` - graph statistics
+- `mermaid` - Mermaid diagram string
+
+---
+
+### detect_design_patterns
+
+Detect design patterns in a loaded assembly. Supports Singleton, Factory, AbstractFactory, Observer, Builder, Strategy, and Decorator.
+
+**Use Cases:**
+- Understand code architecture style at a glance
+- Identify known patterns during reverse engineering to aid comprehension
+
+**AI Conversation Examples:**
+> "What design patterns are used in this assembly?"
+>
+> "Does UserService implement the Singleton pattern?"
+>
+> "Scan the entire assembly for design patterns"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `typeName` | string | No | Specific type to analyze; omit to scan entire assembly |
+| `mvid` | string | No | Specific assembly MVID |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `totalCount` - total patterns detected
+- `summary` - text summary
+- `patterns[]` - each result contains patternType, typeName, confidence, evidence[], relatedTypes[]
+
+---
+
+### enhanced_search
+
+Full-featured assembly search with advanced query syntax support.
+
+**Use Cases:**
+- Complex multi-term queries with include/exclude logic
+- Locate members by exact Metadata Token
+- Unified search across types, members, and literals
+
+**AI Conversation Examples:**
+> "Search for types containing Auth but not Test: +Auth -Test"
+>
+> "Find all methods starting with Get using regex: /^Get/"
+>
+> "Search for the literal string 'https://api.example.com'"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Query string with optional advanced syntax |
+| `mvid` | string | No | Specific assembly MVID |
+| `mode` | string | No | Search mode: auto (default), type, member, method, field, property, event, literal, token |
+| `namespaceFilter` | string | No | Filter by namespace prefix |
+| `limit` | int | No | Max results (default 100, max 1000) |
+| `backendId` | string | No | Target backend ID |
+
+**Query Syntax:**
+- `keyword` — plain keyword search (case-insensitive)
+- `+include -exclude` — include/exclude filtering
+- `=exact` — exact match
+- `~fuzzy` — fuzzy match
+- `/regex/` — regular expression
+- `0xToken` — Metadata Token lookup
+
+**Response Fields:**
+- `items[]` - results with id, name, fullName, kind, declaringType, namespace, value, relevance
+- `totalCount` / `hasMore` / `durationMs` / `mode`
+
+---
+
+### find_base_types
+
+Find all base types and interfaces in a type's inheritance chain.
+
+**Use Cases:**
+- Understand the full inheritance hierarchy
+- Identify all interfaces a type implements
+- Inspect external base types from referenced assemblies
+
+**AI Conversation Examples:**
+> "What is the base class chain for UserService?"
+>
+> "What interfaces does MyClass implement?"
+>
+> "Find all base types of OrderProcessor"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `typeName` | string | Yes | Full type name (e.g. `MyNamespace.MyClass`) |
+| `includeInterfaces` | bool | No | Include interfaces in result (default true) |
+| `mvid` | string | No | Specific assembly MVID |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `types[]` - each entry contains id, fullName, namespace, kind, isExternal
+- `totalCount`
+
+---
+
+### find_derived_types
+
+Find all types that inherit from (or implement) a given type in the current module.
+
+**Use Cases:**
+- Find all subclasses
+- Analyze polymorphism
+- Discover all indirect implementations of an interface
+
+**AI Conversation Examples:**
+> "What classes inherit from BaseController?"
+>
+> "Find all implementations of IRepository (including indirect)"
+>
+> "Show only direct subclasses of Animal"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `typeName` | string | Yes | Full name of base type or interface |
+| `directOnly` | bool | No | Return only direct subclasses (default false = full recursive hierarchy) |
+| `mvid` | string | No | Specific assembly MVID |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `types[]` - each entry contains id, fullName, namespace, kind, isExternal
+- `totalCount`
+
+---
+
+### get_implementations
+
+Find all types that directly implement the specified interface.
+
+**Use Cases:**
+- Quickly locate direct implementors of an interface
+- Combine with find_derived_types for indirect implementations
+
+**AI Conversation Examples:**
+> "What types implement IUserRepository?"
+>
+> "Find all direct implementations of IService"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `interfaceTypeName` | string | Yes | Full interface name (e.g. `MyNamespace.IService`) |
+| `mvid` | string | No | Specific assembly MVID |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `types[]` - each entry contains id, fullName, namespace, kind, isExternal
+- `totalCount`
+
+---
+
+### get_overrides
+
+Find all override implementations of a virtual or abstract method across derived types.
+
+**Use Cases:**
+- Find all entry points through a virtual dispatch
+- Analyze polymorphic method implementations
+
+**AI Conversation Examples:**
+> "What overrides exist for the Execute method?"
+>
+> "Show all implementations of BaseHandler.Handle in derived classes"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `typeName` | string | Yes | Full name of the declaring type |
+| `methodName` | string | Yes | Name of the virtual or abstract method |
+| `mvid` | string | No | Specific assembly MVID |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `methods[]` - each entry contains id, typeFullName, methodName, signature
+- `totalCount`
+
+---
+
+### get_overloads
+
+Find all overloads of a method within the same type.
+
+**Use Cases:**
+- Disambiguate an overloaded method before calling decompile_method
+- Understand all call signatures for a method
+
+**AI Conversation Examples:**
+> "What overloads does the Parse method have?"
+>
+> "List all overloads of UserService.GetUser"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `typeName` | string | Yes | Full type name |
+| `methodName` | string | Yes | Method name |
+| `mvid` | string | No | Specific assembly MVID |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `methods[]` - each entry contains id, typeFullName, methodName, signature
+- `totalCount`
+
+---
+
+### detect_obfuscation
+
+Detect if an assembly is obfuscated, identify the obfuscator, and get a score from 0 to 100.
+
+**Use Cases:**
+- Determine whether de-obfuscation is needed before reverse engineering
+- Identify the obfuscator type to choose the right de-obfuscation tool
+
+**AI Conversation Examples:**
+> "Is this assembly obfuscated?"
+>
+> "Check obfuscation and tell me what obfuscator was used"
+>
+> "Analyze the obfuscation level of this assembly"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mvid` | string | No | Specific assembly MVID |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `isObfuscated` - whether the assembly is obfuscated
+- `obfuscationScore` - score 0-100
+- `confidence` - confidence level (Low/Medium/High)
+- `detectedObfuscators[]` - names of identified obfuscators
+- `topIndicators[]` - top 10 indicators with category, severity, description, location
+- `stats` - statistics including type/method/field counts, invalid names, short names, control flow flattening, proxy methods
+
+---
+
+### warm_index
+
+Pre-build type and member indexes for faster subsequent queries.
+
+**Use Cases:**
+- Pre-warm indexes before heavy analysis on large assemblies
+- Reduce first-query latency in batch analysis workflows
+- Indexes are otherwise built on-demand at first access
+
+**AI Conversation Examples:**
+> "Pre-warm the index for this assembly before I start analysis"
+>
+> "Build the type index now so queries are faster"
+>
+> "Warm the index with a 30-second budget"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mvid` | string | No | MVID or alias of the assembly. Omit to use default. |
+| `typeIndex` | bool | No | Build type index (default true) |
+| `memberIndex` | bool | No | Build member index (default true) |
+| `maxSeconds` | int | No | Soft time budget in seconds. If exceeded, member index building is skipped. |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `typeIndexBuilt` - whether the type index was built
+- `memberIndexBuilt` - whether the member index was built
+- `typeCount` - number of types indexed
+- `memberCount` - number of members indexed
+- `elapsedMs` - elapsed time in milliseconds
+- `maxSecondsExceeded` - whether the soft time budget was exceeded
+
+---
+
+## Assembly Management Tools (Extended)
+
+### detect_unity_assembly
+
+Detect Assembly-CSharp.dll in a Unity game directory. Supports Windows, macOS, and Linux Unity directory layouts.
+
+**Use Cases:**
+- Automatically locate the main assembly when reverse engineering Unity games
+- Use when the exact DLL path is unknown
+
+**AI Conversation Examples:**
+> "Find the Unity assembly in /path/to/MyGame"
+>
+> "I have a Unity game — help me find Assembly-CSharp.dll"
+>
+> "What managed assemblies are in this game directory?"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `gameRootPath` | string | Yes | Path to the Unity game root directory or .app bundle |
+
+**Response Fields:**
+- `assemblyCSharpPath` - full path to Assembly-CSharp.dll
+- `managedDirectory` - path to the Managed directory
+- `gameName` - game name
+- `platform` - detected platform (Windows/macOS/Linux)
+- `unityVersion` - Unity version (if readable)
+- `managedAssemblies[]` - list of all managed DLL paths
+
+---
+
 ## Modification Tools
 
 ### inject_at_entry
@@ -677,6 +1017,48 @@ Generate a Harmony patch skeleton for a method.
 
 ---
 
+### replace_method_body_with_csharp
+
+Replace a method body using C# source code instead of raw IL instructions.
+
+**Use Cases:**
+- Patch method logic without writing IL by hand
+- Stub out methods with simple return values using readable C#
+- Fix or override method implementations in existing assemblies
+
+**AI Conversation Examples:**
+> "Replace GetVersion to return '2.0' using C#"
+>
+> "Make IsLicenseValid always return true, write it as C#"
+>
+> "Replace the ValidateInput body with: if (input == null) return false; return input.Length > 0;"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `methodFullName` | string | Yes | Full method name, e.g. `"MyNamespace.MyClass::MyMethod"` or `"MyNamespace.MyClass.MyMethod"` |
+| `csharpBody` | string | Yes | C# method body (without the signature). Example: `"return x + 1;"` |
+| `mvid` | string | No | Assembly MVID or alias. Omit to use default. |
+| `usings` | string[] | No | Extra using namespaces (defaults to System, System.Collections.Generic, System.Linq, System.Text) |
+| `allowUnsafe` | bool | No | Allow unsafe C# code in the snippet (default false) |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields (success):**
+- `success` - true
+- `message` - confirmation with instruction count
+- `instructionsReplaced` - number of IL instructions in the replaced body
+
+**Response Fields (failure):**
+- `success` - false
+- `error` - error message
+- `diagnostics[]` - Roslyn compilation diagnostics in format `[Severity] ErrorId (line N): message`
+
+**Notes:**
+- The body is compiled with Roslyn using the target method's parameter names and return type
+- Call `save_assembly` after replacing to persist changes to disk
+
+---
+
 ## Backend Management Tools
 
 ### list_backends
@@ -777,6 +1159,116 @@ Check backend health status.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `backendId` | string | No | Backend ID (empty to check all) |
+
+---
+
+## Assembly Alias Management Tools
+
+Aliases let you register a short, human-readable name for a loaded assembly's MVID. Once registered, all tools that accept a `mvid` parameter can use the alias instead of the full 32-character GUID. Aliases are persisted to disk (`~/.local/share/dotnet-mcp/aliases.json` on Linux, `~/Library/Application Support/dotnet-mcp/aliases.json` on macOS, `%LOCALAPPDATA%\dotnet-mcp\aliases.json` on Windows) and can be restored across sessions with `instance_restore_persisted`.
+
+**Alias rules:** 1–32 characters, `[A-Za-z0-9_-]`, not all-digits, not reserved words (`default`, `local`, `null`).
+
+---
+
+### register_assembly_alias
+
+Register a short alias for a loaded assembly MVID.
+
+**Use Cases:**
+- Give the assembly a memorable name like `"main"` instead of a GUID
+- Enable cross-session references by combining with `instance_restore_persisted`
+
+**AI Conversation Examples:**
+> "Register the current assembly as alias 'main'"
+>
+> "Alias this assembly as 'target'"
+>
+> "Register mvid abc123... as 'v2', overwrite if exists"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `alias` | string | Yes | Short alias (1–32 chars, `[A-Za-z0-9_-]`, not reserved) |
+| `mvid` | string | No | Assembly MVID to bind. Omit to use the current default assembly. |
+| `overwrite` | bool | No | If true, overwrite an existing alias with the same name (default false) |
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `alias` - the registered alias name
+- `mvid` - the MVID it was bound to
+
+---
+
+### unregister_assembly_alias
+
+Remove a previously registered assembly alias.
+
+**Use Cases:**
+- Clean up stale alias names
+- Release an alias so it can be reused
+
+**AI Conversation Examples:**
+> "Remove alias 'main'"
+>
+> "Unregister the 'target' alias"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `alias` | string | Yes | Alias to remove |
+| `backendId` | string | No | Target backend ID |
+
+**Notes:**
+- The underlying assembly remains loaded; only the alias mapping is deleted.
+
+---
+
+### list_assembly_aliases
+
+List all registered assembly aliases for the current backend.
+
+**Use Cases:**
+- See what aliases are currently active
+- Verify alias → MVID mappings before analysis
+
+**AI Conversation Examples:**
+> "List all assembly aliases"
+>
+> "What aliases are registered?"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `aliases[]` - array of `{ alias, mvid }` entries
+
+---
+
+### instance_restore_persisted
+
+Reload assemblies from persisted alias entries saved to disk from a previous session.
+
+**Use Cases:**
+- Resume work across sessions without re-loading assemblies manually
+- Restore a known workspace from a previous conversation
+
+**AI Conversation Examples:**
+> "Restore my previous session's assemblies"
+>
+> "Load assemblies from persisted aliases"
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `backendId` | string | No | Target backend ID |
+
+**Response Fields:**
+- `restoredCount` - number of successfully restored assemblies
+
+**Notes:**
+- Failed entries (missing files, invalid paths) are automatically removed from persistence.
 
 ---
 

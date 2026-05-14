@@ -133,10 +133,10 @@ public sealed class InstanceTools
     public async Task<CheckHealthResult> CheckBackendHealth(
         [Description("Backend ID to check. Omit to check the default backend.")] string? id = null)
     {
-        var backend = _registry.Get(id);
+        var backend = _registry.TryGet(id, out _);
         if (backend == null)
         {
-            return new CheckHealthResult { Success = false, Error = "Backend not found. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
+            return new CheckHealthResult { Success = false, Error = BackendResolver.BackendNotFoundMessage(id) };
         }
 
         var healthy = await backend.CheckHealthAsync();
@@ -146,6 +146,101 @@ public sealed class InstanceTools
             BackendId = backend.Id,
             IsHealthy = healthy,
             LastCheck = backend.LastHealthCheck?.ToString("O")
+        };
+    }
+
+    /// <summary>
+    /// 注册程序集 alias
+    /// </summary>
+    [McpServerTool(Name = "register_assembly_alias"), Description("Register a short alias for a loaded assembly MVID. After registration, all tools that accept 'mvid' can use the alias instead of the full GUID. Rules: 1-32 chars, [A-Za-z0-9_-], not all-digits, not reserved words (default/local/null).")]
+    public async Task<AliasToolResult> RegisterAssemblyAlias(
+        [Description("Short alias to register (e.g. 'main', 'v1', 'target'). 1-32 chars, [A-Za-z0-9_-].")] string alias,
+        [Description("Assembly MVID to bind the alias to. Omit to use the current default assembly.")] string? mvid = null,
+        [Description("If true, overwrite an existing alias with the same name.")] bool overwrite = false,
+        [Description("Backend ID. Omit to use the default backend.")] string? backendId = null)
+    {
+        var backend = _registry.TryGet(backendId, out var err1);
+        if (backend == null)
+            return new AliasToolResult { Success = false, Error = err1 };
+
+        // 如果 mvid 未提供，使用默认
+        if (string.IsNullOrEmpty(mvid))
+        {
+            var assemblies = await backend.ListAssembliesAsync();
+            var def = assemblies.FirstOrDefault(a => a.IsDefault) ?? assemblies.FirstOrDefault();
+            if (def == null)
+                return new AliasToolResult { Success = false, Error = "No assemblies loaded. Load an assembly first." };
+            mvid = def.Mvid;
+        }
+
+        var result = await backend.RegisterAssemblyAliasAsync(alias, mvid, overwrite);
+        return new AliasToolResult
+        {
+            Success = result.IsSuccess,
+            Alias = result.Alias,
+            Mvid = result.Mvid,
+            Error = result.ErrorMessage
+        };
+    }
+
+    /// <summary>
+    /// 取消注册程序集 alias
+    /// </summary>
+    [McpServerTool(Name = "unregister_assembly_alias"), Description("Remove a previously registered assembly alias. The underlying assembly remains loaded; only the alias mapping is deleted.")]
+    public async Task<AliasToolResult> UnregisterAssemblyAlias(
+        [Description("Alias to remove.")] string alias,
+        [Description("Backend ID. Omit to use the default backend.")] string? backendId = null)
+    {
+        var backend = _registry.TryGet(backendId, out var err2);
+        if (backend == null)
+            return new AliasToolResult { Success = false, Error = err2 };
+
+        var result = await backend.UnregisterAssemblyAliasAsync(alias);
+        return new AliasToolResult
+        {
+            Success = result.IsSuccess,
+            Alias = result.Alias,
+            Error = result.ErrorMessage
+        };
+    }
+
+    /// <summary>
+    /// 列出所有程序集 alias
+    /// </summary>
+    [McpServerTool(Name = "list_assembly_aliases"), Description("List all registered assembly aliases for the specified backend. Each alias maps a short name to a full MVID.")]
+    public async Task<ListAliasesToolResult> ListAssemblyAliases(
+        [Description("Backend ID. Omit to use the default backend.")] string? backendId = null)
+    {
+        var backend = _registry.TryGet(backendId, out var err3);
+        if (backend == null)
+            return new ListAliasesToolResult { Success = false, Error = err3 };
+
+        var result = await backend.ListAssemblyAliasesAsync();
+        return new ListAliasesToolResult
+        {
+            Success = result.IsSuccess,
+            Aliases = result.Aliases.Select(a => new AliasEntryDto { Alias = a.Alias, Mvid = a.Mvid }).ToArray(),
+            Error = result.ErrorMessage
+        };
+    }
+
+    /// <summary>
+    /// 恢复持久化程序集
+    /// </summary>
+    [McpServerTool(Name = "instance_restore_persisted"), Description("Reload assemblies from persisted alias entries saved to disk from a previous session. Returns the count of successfully restored assemblies. Failed entries are removed from persistence.")]
+    public async Task<RestorePersistedToolResult> RestorePersistedAssemblies(
+        [Description("Backend ID. Omit to use the default backend.")] string? backendId = null)
+    {
+        var backend = _registry.TryGet(backendId, out var err4);
+        if (backend == null)
+            return new RestorePersistedToolResult { Success = false, Error = err4 };
+
+        var result = await backend.RestorePersistedAssembliesAsync();
+        return new RestorePersistedToolResult
+        {
+            Success = result.IsSuccess,
+            RestoredCount = result.RestoredCount,
+            Error = result.ErrorMessage
         };
     }
 }
@@ -193,5 +288,33 @@ public record CheckHealthResult
     public string? BackendId { get; init; }
     public bool IsHealthy { get; init; }
     public string? LastCheck { get; init; }
+    public string? Error { get; init; }
+}
+
+public record AliasToolResult
+{
+    public bool Success { get; init; }
+    public string? Alias { get; init; }
+    public string? Mvid { get; init; }
+    public string? Error { get; init; }
+}
+
+public record ListAliasesToolResult
+{
+    public bool Success { get; init; }
+    public AliasEntryDto[]? Aliases { get; init; }
+    public string? Error { get; init; }
+}
+
+public record AliasEntryDto
+{
+    public required string Alias { get; init; }
+    public required string Mvid { get; init; }
+}
+
+public record RestorePersistedToolResult
+{
+    public bool Success { get; init; }
+    public int RestoredCount { get; init; }
     public string? Error { get; init; }
 }

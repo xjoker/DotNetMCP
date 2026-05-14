@@ -106,7 +106,7 @@ public class AssemblyToolsTests
     {
         // Arrange
         _mockBackend.Setup(b => b.ListAssembliesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<DotNetMcp.Server.Backend.AssemblyInfo>());
+            .ReturnsAsync(new List<DotNetMcp.Server.Backend.AssemblyListItem>());
 
         // Act
         var result = await _tools.ListAssemblies();
@@ -120,7 +120,7 @@ public class AssemblyToolsTests
     public async Task ListAssemblies_WithMultipleAssemblies_ReturnsAllAssemblies()
     {
         // Arrange
-        var assemblies = new List<DotNetMcp.Server.Backend.AssemblyInfo>
+        var assemblies = new List<DotNetMcp.Server.Backend.AssemblyListItem>
         {
             new() { Mvid = Guid.NewGuid().ToString(), Name = "Assembly1", Path = "/path1.dll", IsDefault = true },
             new() { Mvid = Guid.NewGuid().ToString(), Name = "Assembly2", Path = "/path2.dll", IsDefault = false }

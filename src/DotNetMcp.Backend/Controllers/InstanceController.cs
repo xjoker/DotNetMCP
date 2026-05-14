@@ -228,6 +228,79 @@ public class InstanceController : ControllerBase
         });
     }
 
+    // ---------- Alias 端点 ----------
+
+    /// <summary>
+    /// 注册 alias
+    /// </summary>
+    [HttpPost("alias")]
+    public IActionResult RegisterAlias([FromBody] RegisterAliasRequest body)
+    {
+        if (string.IsNullOrEmpty(body.Alias) || string.IsNullOrEmpty(body.Mvid))
+        {
+            return BadRequest(new { success = false, error_code = "BAD_REQUEST", message = "alias and mvid are required" });
+        }
+
+        var success = _assemblyManager.RegisterAlias(body.Alias, body.Mvid, body.Overwrite);
+        if (!success)
+        {
+            return BadRequest(new { success = false, error_code = "ALIAS_FAILED", message = $"Failed to register alias '{body.Alias}'" });
+        }
+
+        return Ok(new { success = true, alias = body.Alias, mvid = body.Mvid });
+    }
+
+    /// <summary>
+    /// 取消注册 alias
+    /// </summary>
+    [HttpDelete("alias/{alias}")]
+    public IActionResult UnregisterAlias(string alias)
+    {
+        var success = _assemblyManager.UnregisterAlias(alias);
+        if (!success)
+        {
+            return NotFound(new { success = false, error_code = "ALIAS_NOT_FOUND", message = $"Alias '{alias}' not found" });
+        }
+
+        return Ok(new { success = true, message = $"Alias '{alias}' removed" });
+    }
+
+    /// <summary>
+    /// 列出所有 alias
+    /// </summary>
+    [HttpGet("aliases")]
+    public IActionResult ListAliases()
+    {
+        var aliases = _assemblyManager.GetAliases()
+            .Select(kvp => new { alias = kvp.Key, mvid = kvp.Value })
+            .ToList();
+
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                aliases = aliases,
+                count = aliases.Count
+            }
+        });
+    }
+
+    /// <summary>
+    /// 恢复持久化程序集
+    /// </summary>
+    [HttpPost("alias/restore")]
+    public async Task<IActionResult> RestorePersistedAssemblies(CancellationToken ct)
+    {
+        var count = await _assemblyManager.RestorePersistedAssembliesAsync(ct);
+        return Ok(new
+        {
+            success = true,
+            data = new { restored_count = count },
+            message = $"Restored {count} assembly alias(es)"
+        });
+    }
+
     private static object GetMemoryInfo()
     {
         var process = System.Diagnostics.Process.GetCurrentProcess();
@@ -238,4 +311,11 @@ public class InstanceController : ControllerBase
             gc_total_memory_mb = GC.GetTotalMemory(false) / 1024 / 1024
         };
     }
+}
+
+public class RegisterAliasRequest
+{
+    public string Alias { get; set; } = string.Empty;
+    public string Mvid { get; set; } = string.Empty;
+    public bool Overwrite { get; set; } = false;
 }

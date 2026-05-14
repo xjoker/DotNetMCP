@@ -1,3 +1,4 @@
+using DotNetMcp.Backend.Core.Compilation;
 using DotNetMcp.Backend.Core.Context;
 using DotNetMcp.Backend.Core.Modification;
 using Mono.Cecil;
@@ -11,10 +12,12 @@ namespace DotNetMcp.Backend.Services;
 public class ModificationService
 {
     private readonly ILogger<ModificationService> _logger;
+    private readonly RoslynPatchService _roslynPatch;
 
-    public ModificationService(ILogger<ModificationService> logger)
+    public ModificationService(ILogger<ModificationService> logger, RoslynPatchService roslynPatch)
     {
         _logger = logger;
+        _roslynPatch = roslynPatch;
     }
 
     /// <summary>
@@ -106,6 +109,58 @@ public class ModificationService
         {
             _logger.LogError(ex, "Failed to replace method body");
             return ModificationResult.Failure("REPLACE_ERROR", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 使用 C# 源码替换方法体（通过 Roslyn 编译后 Cecil 注入）
+    /// </summary>
+    public RoslynPatchResult ReplaceMethodBodyWithCSharp(
+        AssemblyContext context,
+        string methodFullName,
+        string csharpBody,
+        string[]? usings = null,
+        bool allowUnsafe = false)
+    {
+        try
+        {
+            // 解析 "Namespace.Type::Method" 或 "Namespace.Type.Method" 格式
+            string typeName;
+            string methodName;
+
+            if (methodFullName.Contains("::"))
+            {
+                var colonIdx = methodFullName.IndexOf("::", StringComparison.Ordinal);
+                typeName = methodFullName[..colonIdx].Trim();
+                methodName = methodFullName[(colonIdx + 2)..].Trim();
+            }
+            else
+            {
+                var lastDot = methodFullName.LastIndexOf('.');
+                if (lastDot < 0)
+                    return RoslynPatchResult.Failure($"Cannot parse method full name: '{methodFullName}'. Expected format: 'Namespace.Type::Method' or 'Namespace.Type.Method'");
+                typeName = methodFullName[..lastDot];
+                methodName = methodFullName[(lastDot + 1)..];
+            }
+
+            var result = _roslynPatch.ReplaceMethodBody(context, typeName, methodName, csharpBody, usings, null, allowUnsafe);
+
+            if (result.IsSuccess)
+            {
+                _logger.LogInformation("Replaced method body of {Method} with C# source ({Count} instructions)",
+                    methodFullName, result.InstructionsReplaced);
+            }
+            else
+            {
+                _logger.LogWarning("C# patch failed for {Method}: {Error}", methodFullName, result.ErrorMessage);
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in ReplaceMethodBodyWithCSharp for {Method}", methodFullName);
+            return RoslynPatchResult.Failure(ex.Message);
         }
     }
 

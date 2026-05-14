@@ -39,6 +39,44 @@ public class CustomAssemblyResolver : DefaultAssemblyResolver
     }
 
     /// <summary>
+    /// 检测 .NET 运行时根目录，按优先级回退：
+    /// 1. DOTNET_ROOT 环境变量
+    /// 2. /etc/dotnet/install_location 文件（macOS / Linux）
+    /// 3. 平台默认路径
+    /// </summary>
+    public static string DetectDotnetRoot()
+    {
+        // 优先读环境变量
+        var fromEnv = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!string.IsNullOrEmpty(fromEnv))
+            return fromEnv;
+
+        if (OperatingSystem.IsWindows())
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet");
+        }
+
+        // macOS / Linux：尝试读取安装位置文件
+        const string installLocationFile = "/etc/dotnet/install_location";
+        if (File.Exists(installLocationFile))
+        {
+            var location = File.ReadAllText(installLocationFile).Trim();
+            if (!string.IsNullOrEmpty(location))
+                return location;
+        }
+
+        // 平台默认路径
+        if (OperatingSystem.IsMacOS())
+            return "/usr/local/share/dotnet";
+
+        // Linux 默认，再回退到 /usr/lib/dotnet
+        return Directory.Exists("/usr/share/dotnet")
+            ? "/usr/share/dotnet"
+            : "/usr/lib/dotnet";
+    }
+
+    /// <summary>
     /// 添加标准搜索路径
     /// </summary>
     private void AddStandardSearchPaths()
@@ -54,10 +92,7 @@ public class CustomAssemblyResolver : DefaultAssemblyResolver
         }
 
         // .NET Core/5+ 共享框架
-        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT")
-            ?? (OperatingSystem.IsWindows()
-                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet")
-                : "/usr/share/dotnet");
+        var dotnetRoot = DetectDotnetRoot();
 
         var sharedPath = Path.Combine(dotnetRoot, "shared");
         if (Directory.Exists(sharedPath))

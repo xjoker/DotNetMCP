@@ -4,6 +4,8 @@ using DotNetMcp.Backend.Core.Analysis;
 using Microsoft.Extensions.Logging;
 using DiffComparator = DotNetMcp.Backend.Core.Modification.DiffComparator;
 using ModificationDiffType = DotNetMcp.Backend.Core.Modification.DiffType;
+using RoslynPatchResult = DotNetMcp.Backend.Core.Modification.RoslynPatchResult;
+using ModificationResult = DotNetMcp.Backend.Services.ModificationResult;
 
 namespace DotNetMcp.Server.Backend;
 
@@ -56,12 +58,12 @@ public class LocalBackend : IBackend
         return Task.FromResult(_assemblyManager.Unload(mvid));
     }
 
-    public Task<IReadOnlyList<AssemblyInfo>> ListAssembliesAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<AssemblyListItem>> ListAssembliesAsync(CancellationToken cancellationToken = default)
     {
         var assemblies = _assemblyManager.GetAll();
         var defaultMvid = _assemblyManager.DefaultMvid;
 
-        var result = assemblies.Select(ctx => new AssemblyInfo
+        var result = assemblies.Select(ctx => new AssemblyListItem
         {
             Mvid = ctx.Mvid.ToString(),
             Name = ctx.Name ?? "Unknown",
@@ -69,7 +71,7 @@ public class LocalBackend : IBackend
             IsDefault = ctx.Mvid.ToString() == defaultMvid
         }).ToList().AsReadOnly();
 
-        return Task.FromResult<IReadOnlyList<AssemblyInfo>>(result);
+        return Task.FromResult<IReadOnlyList<AssemblyListItem>>(result);
     }
 
     #endregion
@@ -174,6 +176,39 @@ public class LocalBackend : IBackend
         }
 
         return Task.FromResult(_analysisService.BuildControlFlowGraph(context, typeName, methodName, includeIL));
+    }
+
+    public Task<DependencyGraphResult> BuildDependencyGraphAsync(string mvid, string level, string? rootType, int maxDepth, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return Task.FromResult(new DependencyGraphResult { IsSuccess = false, ErrorMessage = $"Assembly '{mvid}' not found" });
+        }
+
+        return Task.FromResult(_analysisService.BuildDependencyGraph(context, level, rootType, maxDepth));
+    }
+
+    public Task<PatternDetectionServiceResult> DetectPatternsAsync(string mvid, string? typeName, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return Task.FromResult(new PatternDetectionServiceResult { IsSuccess = false, ErrorMessage = $"Assembly '{mvid}' not found" });
+        }
+
+        return Task.FromResult(_analysisService.DetectPatterns(context, typeName));
+    }
+
+    public Task<ObfuscationDetectionServiceResult> DetectObfuscationAsync(string mvid, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return Task.FromResult(new ObfuscationDetectionServiceResult { IsSuccess = false, ErrorMessage = $"Assembly '{mvid}' not found" });
+        }
+
+        return Task.FromResult(_analysisService.DetectObfuscation(context));
     }
 
     #endregion
@@ -546,6 +581,172 @@ public class LocalBackend : IBackend
         {
             context.OperationLock.Release();
         }
+    }
+
+    #endregion
+
+    #region Roslyn 修改
+
+    public async Task<RoslynPatchResult> ReplaceMethodBodyWithCSharpAsync(
+        string mvid,
+        string methodFullName,
+        string csharpBody,
+        string[]? usings,
+        bool allowUnsafe,
+        CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return RoslynPatchResult.Failure($"Assembly '{mvid}' not found");
+
+        await context.OperationLock.WaitAsync(cancellationToken);
+        try
+        {
+            return _modificationService.ReplaceMethodBodyWithCSharp(context, methodFullName, csharpBody, usings, allowUnsafe);
+        }
+        finally
+        {
+            context.OperationLock.Release();
+        }
+    }
+
+    #endregion
+
+    #region 继承分析
+
+    public Task<InheritanceResult> FindBaseTypesAsync(string mvid, string typeName, bool includeInterfaces = true, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(InheritanceResult.Failure($"Assembly '{mvid}' not found"));
+
+        return Task.FromResult(_analysisService.FindBaseTypes(context, typeName, includeInterfaces));
+    }
+
+    public Task<InheritanceResult> FindDerivedTypesAsync(string mvid, string typeName, bool directOnly = false, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(InheritanceResult.Failure($"Assembly '{mvid}' not found"));
+
+        return Task.FromResult(_analysisService.FindDerivedTypes(context, typeName, directOnly));
+    }
+
+    public Task<InheritanceResult> GetImplementationsAsync(string mvid, string interfaceTypeName, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(InheritanceResult.Failure($"Assembly '{mvid}' not found"));
+
+        return Task.FromResult(_analysisService.GetImplementations(context, interfaceTypeName));
+    }
+
+    public Task<MethodInheritanceResult> GetOverridesAsync(string mvid, string typeName, string methodName, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(MethodInheritanceResult.Failure($"Assembly '{mvid}' not found"));
+
+        return Task.FromResult(_analysisService.GetOverrides(context, typeName, methodName));
+    }
+
+    public Task<MethodInheritanceResult> GetOverloadsAsync(string mvid, string typeName, string methodName, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(MethodInheritanceResult.Failure($"Assembly '{mvid}' not found"));
+
+        return Task.FromResult(_analysisService.GetOverloads(context, typeName, methodName));
+    }
+
+    #endregion
+
+    #region 索引管理
+
+    public Task<WarmIndexResult> WarmIndexAsync(string mvid, bool typeIndex = true, bool memberIndex = true, int? maxSeconds = null, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+            return Task.FromResult(new WarmIndexResult { IsSuccess = false, ErrorMessage = $"Assembly '{mvid}' not found" });
+
+        return Task.FromResult(_analysisService.WarmIndex(context, typeIndex, memberIndex, maxSeconds));
+    }
+
+    #endregion
+
+    #region 增强搜索
+
+    public Task<EnhancedSearchResult> EnhancedSearchAsync(string mvid, string query, string mode, string? namespaceFilter, int limit, CancellationToken cancellationToken = default)
+    {
+        var context = GetContext(mvid);
+        if (context == null)
+        {
+            return Task.FromResult(new EnhancedSearchResult
+            {
+                Items = Array.Empty<SearchResultItem>(),
+                TotalCount = 0,
+                HasMore = false,
+                SearchDuration = TimeSpan.Zero,
+                Query = query,
+                Mode = SearchMode.TypeAndMember
+            });
+        }
+
+        var module = context.Assembly?.MainModule;
+        if (module == null)
+        {
+            return Task.FromResult(new EnhancedSearchResult
+            {
+                Items = Array.Empty<SearchResultItem>(),
+                TotalCount = 0,
+                HasMore = false,
+                SearchDuration = TimeSpan.Zero,
+                Query = query,
+                Mode = SearchMode.TypeAndMember
+            });
+        }
+
+        var parsedMode = (string.IsNullOrEmpty(mode) || string.Equals(mode, "auto", StringComparison.OrdinalIgnoreCase))
+            ? SearchMode.TypeAndMember
+            : Enum.TryParse<SearchMode>(mode, true, out var m) ? m : SearchMode.TypeAndMember;
+
+        var service = new EnhancedSearchService(context.Mvid);
+        var result = service.Search(module, query, parsedMode, namespaceFilter, limit, cancellationToken);
+        return Task.FromResult(result);
+    }
+
+    #endregion
+
+    #region Alias 管理
+
+    public Task<AliasOperationResult> RegisterAssemblyAliasAsync(string alias, string mvid, bool overwrite = false, CancellationToken cancellationToken = default)
+    {
+        var success = _assemblyManager.RegisterAlias(alias, mvid, overwrite);
+        return Task.FromResult(success
+            ? AliasOperationResult.Success(alias, mvid)
+            : AliasOperationResult.Failure($"Failed to register alias '{alias}'. Alias may be invalid, reserved, already exists, or mvid '{mvid}' not loaded."));
+    }
+
+    public Task<AliasOperationResult> UnregisterAssemblyAliasAsync(string alias, CancellationToken cancellationToken = default)
+    {
+        var success = _assemblyManager.UnregisterAlias(alias);
+        return Task.FromResult(success
+            ? AliasOperationResult.Success(alias)
+            : AliasOperationResult.Failure($"Alias '{alias}' not found"));
+    }
+
+    public Task<ListAliasesResult> ListAssemblyAliasesAsync(CancellationToken cancellationToken = default)
+    {
+        var aliases = _assemblyManager.GetAliases()
+            .Select(kvp => new AliasInfoDto { Alias = kvp.Key, Mvid = kvp.Value })
+            .ToList();
+        return Task.FromResult(ListAliasesResult.Success(aliases));
+    }
+
+    public async Task<RestorePersistedResult> RestorePersistedAssembliesAsync(CancellationToken cancellationToken = default)
+    {
+        var count = await _assemblyManager.RestorePersistedAssembliesAsync(cancellationToken);
+        return RestorePersistedResult.Success(count);
     }
 
     #endregion

@@ -3,6 +3,8 @@ using System.Text.Json;
 using DotNetMcp.Backend.Services;
 using DotNetMcp.Backend.Core.Analysis;
 using DotNetMcp.Backend.Core.Context;
+using RoslynPatchResult = DotNetMcp.Backend.Core.Modification.RoslynPatchResult;
+using ModificationResult = DotNetMcp.Backend.Services.ModificationResult;
 
 namespace DotNetMcp.Server.Backend;
 
@@ -82,20 +84,23 @@ public class RemoteBackend : IBackend
 
     private async Task<T?> SendAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken) where T : class
     {
-        try
+        using (request)
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds));
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds));
 
-            using var response = await _httpClient.SendAsync(request, cts.Token);
-            response.EnsureSuccessStatusCode();
+                using var response = await _httpClient.SendAsync(request, cts.Token);
+                response.EnsureSuccessStatusCode();
 
-            return await response.Content.ReadFromJsonAsync<T>(cts.Token);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Remote backend request failed: {Method} {Path}", request.Method, request.RequestUri);
-            throw;
+                return await response.Content.ReadFromJsonAsync<T>(cts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Remote backend request failed: {Method} {Path}", request.Method, request.RequestUri);
+                throw;
+            }
         }
     }
 
@@ -106,16 +111,16 @@ public class RemoteBackend : IBackend
         var request = CreateRequest(HttpMethod.Post, "/assembly/load", new { path, search_paths = searchPaths?.ToList() });
         try
         {
-            var response = await SendAsync<RemoteAssemblyLoadResponse>(request, cancellationToken);
-            if (response is null)
+            var envelope = await SendAsync<RemoteEnvelope<RemoteAssemblyLoadData>>(request, cancellationToken);
+            if (envelope is null)
             {
                 return AssemblyLoadResult.Failure(AssemblyLoadErrorCode.Unknown, "Empty response from remote backend");
             }
-            if (response.Success && response.Mvid is not null && response.Name is not null)
+            if (envelope.Success && envelope.Data?.Mvid is not null && envelope.Data?.Name is not null)
             {
-                return AssemblyLoadResult.SuccessRemote(response.Mvid, response.Name);
+                return AssemblyLoadResult.SuccessRemote(envelope.Data.Mvid, envelope.Data.Name);
             }
-            return AssemblyLoadResult.Failure(AssemblyLoadErrorCode.Unknown, response.Error ?? "Remote load failed");
+            return AssemblyLoadResult.Failure(AssemblyLoadErrorCode.Unknown, envelope.Message ?? "Remote load failed");
         }
         catch (Exception ex)
         {
@@ -125,39 +130,43 @@ public class RemoteBackend : IBackend
 
     public async Task<bool> UnloadAssemblyAsync(string mvid, CancellationToken cancellationToken = default)
     {
-        var request = CreateRequest(HttpMethod.Delete, $"/instance/{mvid}");
+        using var request = CreateRequest(HttpMethod.Delete, $"/instance/{mvid}");
         try
         {
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds));
+
+            using var response = await _httpClient.SendAsync(request, cts.Token);
             return response.IsSuccessStatusCode;
         }
+        catch (OperationCanceledException) { throw; }
         catch
         {
             return false;
         }
     }
 
-    public async Task<IReadOnlyList<AssemblyInfo>> ListAssembliesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<AssemblyListItem>> ListAssembliesAsync(CancellationToken cancellationToken = default)
     {
         var request = CreateRequest(HttpMethod.Get, "/instance/list");
         try
         {
-            var response = await SendAsync<RemoteAssemblyListResponse>(request, cancellationToken);
-            if (response?.Assemblies is null)
+            var envelope = await SendAsync<RemoteEnvelope<RemoteAssemblyListData>>(request, cancellationToken);
+            if (envelope?.Success != true || envelope.Data?.Instances is null)
             {
-                return new List<AssemblyInfo>().AsReadOnly();
+                return new List<AssemblyListItem>().AsReadOnly();
             }
-            return response.Assemblies.Select(a => new AssemblyInfo
+            return envelope.Data.Instances.Select(a => new AssemblyListItem
             {
-                Mvid = a.Mvid,
-                Name = a.Name,
-                Path = a.Path,
+                Mvid = a.Mvid ?? string.Empty,
+                Name = a.Name ?? string.Empty,
+                Path = a.Path ?? string.Empty,
                 IsDefault = a.IsDefault
             }).ToList().AsReadOnly();
         }
         catch
         {
-            return new List<AssemblyInfo>().AsReadOnly();
+            return new List<AssemblyListItem>().AsReadOnly();
         }
     }
 
@@ -362,6 +371,96 @@ public class RemoteBackend : IBackend
 
     #endregion
 
+    #region 图分析
+
+    public async Task<DependencyGraphResult> BuildDependencyGraphAsync(string mvid, string level, string? rootType, int maxDepth, CancellationToken cancellationToken = default)
+    {
+        var url = $"/analysis/dependencies?level={Uri.EscapeDataString(level)}&max_depth={maxDepth}&mvid={Uri.EscapeDataString(mvid)}";
+        if (rootType != null) url += $"&root_type={Uri.EscapeDataString(rootType)}";
+
+        var httpRequest = CreateRequest(HttpMethod.Get, url);
+        try
+        {
+            var result = await SendAsync<DependencyGraphResult>(httpRequest, cancellationToken);
+            return result ?? new DependencyGraphResult { IsSuccess = false, ErrorMessage = "Empty response from remote backend" };
+        }
+        catch (Exception ex)
+        {
+            return new DependencyGraphResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    public async Task<PatternDetectionServiceResult> DetectPatternsAsync(string mvid, string? typeName, CancellationToken cancellationToken = default)
+    {
+        var url = $"/analysis/patterns?mvid={Uri.EscapeDataString(mvid)}";
+        if (typeName != null) url += $"&type_name={Uri.EscapeDataString(typeName)}";
+
+        var httpRequest = CreateRequest(HttpMethod.Get, url);
+        try
+        {
+            var result = await SendAsync<PatternDetectionServiceResult>(httpRequest, cancellationToken);
+            return result ?? new PatternDetectionServiceResult { IsSuccess = false, ErrorMessage = "Empty response from remote backend" };
+        }
+        catch (Exception ex)
+        {
+            return new PatternDetectionServiceResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    public async Task<ObfuscationDetectionServiceResult> DetectObfuscationAsync(string mvid, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Get, $"/analysis/obfuscation?mvid={Uri.EscapeDataString(mvid)}");
+        try
+        {
+            var result = await SendAsync<ObfuscationDetectionServiceResult>(httpRequest, cancellationToken);
+            return result ?? new ObfuscationDetectionServiceResult { IsSuccess = false, ErrorMessage = "Empty response from remote backend" };
+        }
+        catch (Exception ex)
+        {
+            return new ObfuscationDetectionServiceResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    #endregion
+
+    #region 增强搜索
+
+    public async Task<EnhancedSearchResult> EnhancedSearchAsync(string mvid, string query, string mode, string? namespaceFilter, int limit, CancellationToken cancellationToken = default)
+    {
+        var url = $"/analysis/enhanced-search?query={Uri.EscapeDataString(query)}&mode={Uri.EscapeDataString(mode)}&limit={limit}&mvid={Uri.EscapeDataString(mvid)}";
+        if (namespaceFilter != null) url += $"&namespace={Uri.EscapeDataString(namespaceFilter)}";
+
+        var httpRequest = CreateRequest(HttpMethod.Get, url);
+        try
+        {
+            var result = await SendAsync<EnhancedSearchResult>(httpRequest, cancellationToken);
+            return result ?? new EnhancedSearchResult
+            {
+                Items = Array.Empty<SearchResultItem>(),
+                TotalCount = 0,
+                HasMore = false,
+                SearchDuration = TimeSpan.Zero,
+                Query = query,
+                Mode = SearchMode.TypeAndMember
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EnhancedSearchAsync failed for query '{Query}'", query);
+            return new EnhancedSearchResult
+            {
+                Items = Array.Empty<SearchResultItem>(),
+                TotalCount = 0,
+                HasMore = false,
+                SearchDuration = TimeSpan.Zero,
+                Query = query,
+                Mode = SearchMode.TypeAndMember
+            };
+        }
+    }
+
+    #endregion
+
     #region 修改操作
 
     public async Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default)
@@ -420,30 +519,283 @@ public class RemoteBackend : IBackend
         }
     }
 
+    public async Task<RoslynPatchResult> ReplaceMethodBodyWithCSharpAsync(
+        string mvid,
+        string methodFullName,
+        string csharpBody,
+        string[]? usings,
+        bool allowUnsafe,
+        CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Post, "/modification/csharp", new
+        {
+            mvid,
+            methodFullName,
+            csharpBody,
+            usings,
+            allowUnsafe
+        });
+        try
+        {
+            var result = await SendAsync<RoslynPatchResult>(httpRequest, cancellationToken);
+            return result ?? RoslynPatchResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return RoslynPatchResult.Failure(ex.Message);
+        }
+    }
+
+    #endregion
+
+    #region 继承分析
+
+    public async Task<InheritanceResult> FindBaseTypesAsync(string mvid, string typeName, bool includeInterfaces = true, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Get, $"/analysis/inheritance/base-types/{Uri.EscapeDataString(typeName)}?includeInterfaces={includeInterfaces}&mvid={mvid}");
+        try
+        {
+            var result = await SendAsync<InheritanceResult>(httpRequest, cancellationToken);
+            return result ?? InheritanceResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return InheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    public async Task<InheritanceResult> FindDerivedTypesAsync(string mvid, string typeName, bool directOnly = false, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Get, $"/analysis/inheritance/derived-types/{Uri.EscapeDataString(typeName)}?directOnly={directOnly}&mvid={mvid}");
+        try
+        {
+            var result = await SendAsync<InheritanceResult>(httpRequest, cancellationToken);
+            return result ?? InheritanceResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return InheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    public async Task<InheritanceResult> GetImplementationsAsync(string mvid, string interfaceTypeName, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Get, $"/analysis/inheritance/implementations/{Uri.EscapeDataString(interfaceTypeName)}?mvid={mvid}");
+        try
+        {
+            var result = await SendAsync<InheritanceResult>(httpRequest, cancellationToken);
+            return result ?? InheritanceResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return InheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    public async Task<MethodInheritanceResult> GetOverridesAsync(string mvid, string typeName, string methodName, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Get, $"/analysis/inheritance/overrides/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?mvid={mvid}");
+        try
+        {
+            var result = await SendAsync<MethodInheritanceResult>(httpRequest, cancellationToken);
+            return result ?? MethodInheritanceResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return MethodInheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    public async Task<MethodInheritanceResult> GetOverloadsAsync(string mvid, string typeName, string methodName, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Get, $"/analysis/inheritance/overloads/{Uri.EscapeDataString(typeName)}/{Uri.EscapeDataString(methodName)}?mvid={mvid}");
+        try
+        {
+            var result = await SendAsync<MethodInheritanceResult>(httpRequest, cancellationToken);
+            return result ?? MethodInheritanceResult.Failure("Empty response from remote backend");
+        }
+        catch (Exception ex)
+        {
+            return MethodInheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    #endregion
+
+    #region Alias 管理
+
+    public async Task<AliasOperationResult> RegisterAssemblyAliasAsync(string alias, string mvid, bool overwrite = false, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Post, $"/instance/alias", new { alias, mvid, overwrite });
+        try
+        {
+            var envelope = await SendAsync<RemoteEnvelope<AliasOperationResult>>(httpRequest, cancellationToken);
+            if (envelope?.Success == true)
+                return AliasOperationResult.Success(alias, mvid);
+            return AliasOperationResult.Failure(envelope?.Message ?? "Remote alias register failed");
+        }
+        catch (Exception ex)
+        {
+            return AliasOperationResult.Failure(ex.Message);
+        }
+    }
+
+    public async Task<AliasOperationResult> UnregisterAssemblyAliasAsync(string alias, CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Delete, $"/instance/alias/{Uri.EscapeDataString(alias)}");
+        try
+        {
+            var envelope = await SendAsync<RemoteEnvelope<object>>(httpRequest, cancellationToken);
+            if (envelope?.Success == true)
+                return AliasOperationResult.Success(alias);
+            return AliasOperationResult.Failure(envelope?.Message ?? "Remote alias unregister failed");
+        }
+        catch (Exception ex)
+        {
+            return AliasOperationResult.Failure(ex.Message);
+        }
+    }
+
+    public async Task<ListAliasesResult> ListAssemblyAliasesAsync(CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Get, "/instance/aliases");
+        try
+        {
+            var envelope = await SendAsync<RemoteEnvelope<RemoteAliasListData>>(httpRequest, cancellationToken);
+            if (envelope?.Success == true && envelope.Data?.Aliases != null)
+            {
+                var aliases = envelope.Data.Aliases.Select(a => new AliasInfoDto
+                {
+                    Alias = a.Alias ?? string.Empty,
+                    Mvid = a.Mvid ?? string.Empty
+                }).ToList();
+                return ListAliasesResult.Success(aliases);
+            }
+            return ListAliasesResult.Failure(envelope?.Message ?? "Remote list aliases failed");
+        }
+        catch (Exception ex)
+        {
+            return ListAliasesResult.Failure(ex.Message);
+        }
+    }
+
+    public async Task<RestorePersistedResult> RestorePersistedAssembliesAsync(CancellationToken cancellationToken = default)
+    {
+        var httpRequest = CreateRequest(HttpMethod.Post, "/instance/alias/restore");
+        try
+        {
+            var envelope = await SendAsync<RemoteEnvelope<RemoteRestoreData>>(httpRequest, cancellationToken);
+            if (envelope?.Success == true)
+                return RestorePersistedResult.Success(envelope.Data?.RestoredCount ?? 0);
+            return RestorePersistedResult.Failure(envelope?.Message ?? "Remote restore failed");
+        }
+        catch (Exception ex)
+        {
+            return RestorePersistedResult.Failure(ex.Message);
+        }
+    }
+
+    #endregion
+
+    #region 索引预热
+
+    public async Task<WarmIndexResult> WarmIndexAsync(string mvid, bool typeIndex = true, bool memberIndex = true, int? maxSeconds = null, CancellationToken cancellationToken = default)
+    {
+        var url = $"/instance/warm-index?mvid={Uri.EscapeDataString(mvid)}&typeIndex={typeIndex}&memberIndex={memberIndex}";
+        if (maxSeconds.HasValue) url += $"&maxSeconds={maxSeconds.Value}";
+        var httpRequest = CreateRequest(HttpMethod.Post, url);
+        try
+        {
+            var result = await SendAsync<WarmIndexResult>(httpRequest, cancellationToken);
+            return result ?? new WarmIndexResult { IsSuccess = false, ErrorMessage = "Empty response from remote backend" };
+        }
+        catch (Exception ex)
+        {
+            return new WarmIndexResult { IsSuccess = false, ErrorMessage = ex.Message };
+        }
+    }
+
     #endregion
 }
 
 #region Remote Response Types
 
-internal class RemoteAssemblyLoadResponse
+/// <summary>
+/// Backend 统一 envelope 格式：{ success, data, error_code, message }
+/// </summary>
+internal class RemoteEnvelope<T>
 {
+    [System.Text.Json.Serialization.JsonPropertyName("success")]
     public bool Success { get; set; }
-    public string? Mvid { get; set; }
-    public string? Name { get; set; }
-    public string? Error { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("data")]
+    public T? Data { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("error_code")]
+    public string? ErrorCode { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("message")]
+    public string? Message { get; set; }
 }
 
-internal class RemoteAssemblyListResponse
+internal class RemoteAssemblyLoadData
 {
-    public List<RemoteAssemblyInfo>? Assemblies { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("mvid")]
+    public string? Mvid { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("version")]
+    public string? Version { get; set; }
+}
+
+internal class RemoteAssemblyListData
+{
+    [System.Text.Json.Serialization.JsonPropertyName("instances")]
+    public List<RemoteAssemblyInfo>? Instances { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("count")]
+    public int Count { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("default_instance")]
+    public string? DefaultInstance { get; set; }
 }
 
 internal class RemoteAssemblyInfo
 {
-    public required string Mvid { get; set; }
-    public required string Name { get; set; }
-    public required string Path { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("mvid")]
+    public string? Mvid { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("is_default")]
     public bool IsDefault { get; set; }
+}
+
+internal class RemoteAliasListData
+{
+    [System.Text.Json.Serialization.JsonPropertyName("aliases")]
+    public List<RemoteAliasInfo>? Aliases { get; set; }
+}
+
+internal class RemoteAliasInfo
+{
+    [System.Text.Json.Serialization.JsonPropertyName("alias")]
+    public string? Alias { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("mvid")]
+    public string? Mvid { get; set; }
+}
+
+internal class RemoteRestoreData
+{
+    [System.Text.Json.Serialization.JsonPropertyName("restored_count")]
+    public int RestoredCount { get; set; }
 }
 
 #endregion

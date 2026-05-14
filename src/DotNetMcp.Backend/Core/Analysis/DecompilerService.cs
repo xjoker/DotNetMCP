@@ -3,17 +3,21 @@ using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.TypeSystem;
 using Mono.Cecil;
 using DotNetMcp.Backend.Core.Context;
+using SrmEntityHandle = System.Reflection.Metadata.EntityHandle;
+using SrmMethodDefinitionHandle = System.Reflection.Metadata.MethodDefinitionHandle;
+using SrmMetadataTokens = System.Reflection.Metadata.Ecma335.MetadataTokens;
 
 namespace DotNetMcp.Backend.Core.Analysis;
 
 /// <summary>
 /// 反编译服务 - 使用 ILSpy 引擎反编译 IL 到 C#
 /// </summary>
-public class DecompilerService
+public class DecompilerService : IDisposable
 {
     private readonly AssemblyContext _context;
     private CSharpDecompiler? _decompiler;
     private readonly object _lock = new();
+    private bool _disposed;
 
     public DecompilerService(AssemblyContext context)
     {
@@ -47,14 +51,14 @@ public class DecompilerService
         try
         {
             var decompiler = GetOrCreateDecompiler();
-            var handle = method.MetadataToken;
-            
-            // 使用类型级别反编译然后提取方法
-            var fullTypeName = new FullTypeName(type.FullName);
-            var typeCode = decompiler.DecompileTypeAsString(fullTypeName);
-            
-            // 简单提取方法（实际实现可更精确）
-            return DecompileResult.Success(typeCode, $"{type.FullName}.{method.Name}");
+
+            // 从 Mono.Cecil MetadataToken 提取行号（低 24 位），转换为 MethodDefinitionHandle
+            int rid = method.MetadataToken.ToInt32() & 0x00FFFFFF;
+            SrmMethodDefinitionHandle methodHandle = SrmMetadataTokens.MethodDefinitionHandle(rid);
+            SrmEntityHandle entityHandle = methodHandle;
+
+            var code = decompiler.DecompileAsString(new[] { entityHandle });
+            return DecompileResult.Success(code, $"{type.FullName}.{method.Name}");
         }
         catch (Exception ex)
         {
@@ -141,6 +145,28 @@ public class DecompilerService
         if (method.IsStatic) attrs.Add("static");
         if (method.IsVirtual) attrs.Add("virtual");
         return string.Join(" ", attrs);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        lock (_lock)
+        {
+            if (_decompiler != null)
+            {
+                // CSharpDecompiler 本身未实现 IDisposable，但其内部持有的 MetadataFile（PEFile）需要清理
+                var metadataFile = _decompiler.TypeSystem?.MainModule?.MetadataFile;
+                if (metadataFile is IDisposable disposableFile)
+                    disposableFile.Dispose();
+
+                _decompiler = null;
+            }
+        }
+
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 }
 

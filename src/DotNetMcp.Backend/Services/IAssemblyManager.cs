@@ -57,4 +57,34 @@ public interface IAssemblyManager
     /// <param name="mvid">程序集 MVID</param>
     /// <returns>是否设置成功</returns>
     bool SetDefault(string mvid);
+
+    // ---------- Alias 支持 ----------
+
+    /// <summary>
+    /// 注册 alias → mvid 映射
+    /// </summary>
+    /// <param name="alias">别名（长度 1-32，[A-Za-z0-9_-]，不能是纯数字或保留字）</param>
+    /// <param name="mvid">目标 MVID</param>
+    /// <param name="overwrite">是否允许覆盖已有 alias</param>
+    bool RegisterAlias(string alias, string mvid, bool overwrite = false);
+
+    /// <summary>
+    /// 取消注册 alias
+    /// </summary>
+    bool UnregisterAlias(string alias);
+
+    /// <summary>
+    /// 解析 aliasOrMvid：先查 alias 表，找不到直接当 mvid 返回
+    /// </summary>
+    string? ResolveAlias(string? aliasOrMvid);
+
+    /// <summary>
+    /// 获取全部 alias 映射
+    /// </summary>
+    IReadOnlyDictionary<string, string> GetAliases();
+
+    /// <summary>
+    /// 从持久化存储恢复 alias 并重新加载对应程序集（按需触发，不自动运行）
+    /// </summary>
+    Task<int> RestorePersistedAssembliesAsync(CancellationToken ct = default);
 }

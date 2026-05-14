@@ -60,7 +60,7 @@ public class LocalBackendTests
     public async Task ListAssembliesAsync_ReturnsAssemblies()
     {
         // Arrange
-        var expectedAssemblies = new List<AssemblyInfo>
+        var expectedAssemblies = new List<AssemblyListItem>
         {
             new() { Mvid = Guid.NewGuid().ToString(), Name = "Test", Path = "/test.dll" }
         };

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using DotNetMcp.Backend.Services;
+using DotNetMcp.Backend.Core.Modification;
 
 namespace DotNetMcp.Backend.Controllers;
 
@@ -204,6 +205,55 @@ public class ModificationController : ControllerBase
     }
 
     /// <summary>
+    /// 用 C# 源码替换方法体（Roslyn 编译 + Cecil 注入）
+    /// </summary>
+    [HttpPost("csharp")]
+    public async Task<IActionResult> ReplaceMethodBodyWithCSharp([FromBody] CSharpPatchRequest request)
+    {
+        var context = _assemblyManager.Get(request.Mvid);
+        if (context == null)
+        {
+            return NotFound(new { success = false, error_code = "ASSEMBLY_NOT_FOUND", message = "Assembly not found. Load an assembly first using the assembly/load endpoint." });
+        }
+
+        await context.OperationLock.WaitAsync();
+        try
+        {
+            var result = _modificationService.ReplaceMethodBodyWithCSharp(
+                context,
+                request.MethodFullName,
+                request.CsharpBody,
+                request.Usings,
+                request.AllowUnsafe);
+
+            if (!result.IsSuccess)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error_code = "ROSLYN_PATCH_FAILED",
+                    message = result.ErrorMessage,
+                    diagnostics = result.Diagnostics
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                data = new
+                {
+                    method = request.MethodFullName,
+                    instructions_replaced = result.InstructionsReplaced
+                }
+            });
+        }
+        finally
+        {
+            context.OperationLock.Release();
+        }
+    }
+
+    /// <summary>
     /// 保存程序集
     /// </summary>
     [HttpPost("save")]
@@ -282,6 +332,15 @@ public record SaveRequest
 {
     public string? Mvid { get; init; }
     public required string OutputPath { get; init; }
+}
+
+public record CSharpPatchRequest
+{
+    public string? Mvid { get; init; }
+    public required string MethodFullName { get; init; }
+    public required string CsharpBody { get; init; }
+    public string[]? Usings { get; init; }
+    public bool AllowUnsafe { get; init; }
 }
 
 #endregion

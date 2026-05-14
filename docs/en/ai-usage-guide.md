@@ -256,6 +256,180 @@ User: Change IsLicenseValid method to always return true
 User: Save to App_Modified.dll
 ```
 
+## Advanced Scenarios
+
+### Scenario 5: Detect Whether an Assembly is Obfuscated
+
+After loading an assembly, use `detect_obfuscation` to assess whether de-obfuscation is required before proceeding:
+
+```
+User: Load SuspiciousApp.dll
+
+User: Is this assembly obfuscated?
+
+AI: [Call detect_obfuscation]
+
+    Result: Obfuscation score 87/100, confidence High.
+    Detected obfuscator: ConfuserEx.
+    Top indicators: many single-character type names (a, b, c), 42 control-flow-flattened methods, 18 proxy methods.
+    Recommend using a matching de-obfuscator before further analysis.
+```
+
+### Scenario 6: Analyze Inheritance Relationships
+
+When you need to understand a type hierarchy, combine the inheritance tools:
+
+```
+User: What types implement IRepository?
+
+AI: [Call get_implementations interfaceTypeName="MyApp.IRepository"]
+
+    Found 3 direct implementations:
+    - MyApp.Data.SqlRepository
+    - MyApp.Data.MongoRepository
+    - MyApp.Data.InMemoryRepository
+
+User: What is the base class chain of SqlRepository?
+
+AI: [Call find_base_types typeName="MyApp.Data.SqlRepository"]
+
+    Base classes: BaseRepository (internal) → System.Object (external)
+    Interfaces implemented: IRepository, IDisposable
+
+User: Are there any other types derived from BaseRepository?
+
+AI: [Call find_derived_types typeName="MyApp.Data.BaseRepository"]
+
+    Found 4 derived types: SqlRepository, MongoRepository, InMemoryRepository, CachedRepository
+```
+
+### Scenario 7: Unity Game Reverse Engineering
+
+When analyzing a Unity game, use `detect_unity_assembly` to auto-locate the main assembly:
+
+```
+User: Help me analyze the Unity game at /Users/me/Games/MyGame
+
+AI: [Call detect_unity_assembly gameRootPath="/Users/me/Games/MyGame"]
+
+    Found Unity assembly:
+    - Assembly-CSharp.dll: /Users/me/Games/MyGame/MyGame.app/Contents/Resources/Data/Managed/Assembly-CSharp.dll
+    - Game name: MyGame
+    - Unity version: 2022.3.10f1
+    - 47 managed assemblies found
+
+User: Load Assembly-CSharp.dll
+
+AI: [Call load_assembly path="..."]
+
+User: Find all Player-related types
+
+AI: [Call search_types keyword="Player"]
+```
+
+### Scenario 8: Dependency Graph Visualization
+
+Use the dependency graph to understand code structure. Copy the Mermaid output to any Mermaid renderer:
+
+```
+User: Show the dependency graph for this assembly
+
+AI: [Call get_dependency_graph level="assembly"]
+
+    Assembly dependency graph (8 nodes, 12 edges):
+    ```mermaid
+    graph LR
+      MyApp --> Newtonsoft.Json
+      MyApp --> Microsoft.EntityFrameworkCore
+      ...
+    ```
+
+User: Show type dependencies for UserService at depth 2
+
+AI: [Call get_dependency_graph level="type" rootType="MyApp.Services.UserService" maxDepth=2]
+
+    Type dependency graph (Mermaid): ...
+```
+
+## Using Aliases to Simplify Workflows
+
+Instead of repeating the full MVID in every tool call, register a short alias once and use it everywhere.
+
+```
+User: Load /path/to/GameLib.dll, then register it as alias 'game'
+
+AI: [Call load_assembly path="/path/to/GameLib.dll"]
+    [Call register_assembly_alias alias="game"]
+
+    Loaded assembly GameLib.dll. Registered as alias 'game'. You can now use 'game' wherever a mvid is required.
+
+User: Find all types named Controller using alias 'game'
+
+AI: [Call search_types keyword="Controller" mvid="game"]
+
+    Found 5 types matching 'Controller':
+    - GameLib.PlayerController
+    - GameLib.EnemyController
+    ...
+
+# Restore on next session
+User: Restore my previous assemblies
+
+AI: [Call instance_restore_persisted]
+
+    Restored 1 assembly. Alias 'game' → GameLib.dll is available again.
+```
+
+## Patching Methods with C# Instead of IL
+
+Use `replace_method_body_with_csharp` to patch methods without writing raw IL opcodes.
+
+```
+User: Make IsTrialExpired always return false, write it as C#
+
+AI: [Call replace_method_body_with_csharp
+     methodFullName="MyApp.Licensing.LicenseManager::IsTrialExpired"
+     csharpBody="return false;"]
+
+    Method body replaced with 2 IL instructions.
+
+User: Save the changes
+
+AI: [Call save_assembly outputPath="/path/to/MyApp.Patched.dll"]
+
+    Assembly saved to MyApp.Patched.dll.
+
+# If compilation fails, diagnostics are returned
+User: Replace GetConfig to return a specific string
+
+AI: [Call replace_method_body_with_csharp
+     methodFullName="MyApp.Config::GetConfig"
+     csharpBody="return Cofig.Default;"]  ← typo
+
+    Compilation failed:
+    [Error] CS0103 (line 1): The name 'Cofig' does not exist in the current context
+```
+
+## Pre-warming Index for Large Assemblies
+
+For large assemblies (>5 MB), pre-building indexes before heavy analysis reduces per-query latency.
+
+```
+User: Load the game assembly, then pre-warm indexes before I start analysis
+
+AI: [Call load_assembly path="/path/to/Assembly-CSharp.dll"]
+    [Call warm_index typeIndex=true memberIndex=true maxSeconds=30]
+
+    Loaded Assembly-CSharp.dll (8.4 MB, 2,847 types).
+    Index warm-up complete: 2,847 types, 41,320 members indexed in 18.4 s.
+
+User: Now find all methods named Update
+
+AI: [Call search_types keyword="Update"]  ← instant, uses cached index
+
+    ...
+```
+
 ## Important Notes
 
 1. **Path format**: Use absolute paths for reliability
@@ -263,6 +437,7 @@ User: Save to App_Modified.dll
 3. **Large assemblies**: Use limit parameter to control result count
 4. **Dependency resolution**: Use searchPaths to specify dependency directories
 5. **Backup before modifying**: Always backup original file before making changes
+6. **Aliases persist across sessions**: Use `register_assembly_alias` + `instance_restore_persisted` to avoid re-loading assemblies every session
 
 ## Next Steps
 

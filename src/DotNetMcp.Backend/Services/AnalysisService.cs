@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using DotNetMcp.Backend.Core.Context;
 using DotNetMcp.Backend.Core.Analysis;
@@ -30,7 +31,7 @@ public class AnalysisService
         {
             _logger.LogInformation("Decompiling type: {TypeName}", typeName);
             
-            var decompiler = new DecompilerService(context);
+            using var decompiler = new DecompilerService(context);
 
             if (language.ToLower() == "il")
             {
@@ -73,7 +74,7 @@ public class AnalysisService
                 return DecompileResult.Failure($"Method '{methodName}' not found in type '{typeName}'");
             }
 
-            var decompiler = new DecompilerService(context);
+            using var decompiler = new DecompilerService(context);
             return decompiler.DecompileMethod(type, method);
         }
         catch (Exception ex)
@@ -151,26 +152,43 @@ public class AnalysisService
     #region 搜索
 
     /// <summary>
-    /// 搜索类型
+    /// 搜索类型（使用 EnhancedSearchService，支持正则、高级语法、模糊匹配）
     /// </summary>
     public SearchTypesResult SearchTypes(AssemblyContext context, string keyword, string? namespaceFilter = null, int limit = 50)
     {
         try
         {
-            var types = context.Assembly?.MainModule.Types
-                .Where(t => t.FullName.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                .Where(t => namespaceFilter == null || t.Namespace?.StartsWith(namespaceFilter) == true)
-                .Take(limit)
-                .Select(t => new TypeSummary
+            var module = context.Assembly?.MainModule;
+            if (module == null)
+                return new SearchTypesResult { IsSuccess = true, Types = new List<TypeSummary>(), TotalCount = 0 };
+
+            var searchService = new EnhancedSearchService(module.Mvid);
+            var searchResult = searchService.SearchTypes(module, keyword, namespaceFilter, limit);
+
+            // 建立 FullName → TypeDefinition 的快速查找表，用于填充 MethodCount/FieldCount
+            var typeDefMap = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
+            foreach (var t in module.Types)
+            {
+                typeDefMap[t.FullName] = t;
+                foreach (var nested in GetAllNestedTypes(t))
+                    typeDefMap[nested.FullName] = nested;
+            }
+
+            var types = searchResult.Items
+                .Select(item =>
                 {
-                    FullName = StringSanitizer.SanitizeTypeName(t.FullName),
-                    Namespace = StringSanitizer.Sanitize(t.Namespace),
-                    Name = StringSanitizer.Sanitize(t.Name),
-                    Kind = GetTypeKind(t),
-                    MethodCount = t.Methods.Count,
-                    FieldCount = t.Fields.Count
+                    typeDefMap.TryGetValue(item.FullName, out var typeDef);
+                    return new TypeSummary
+                    {
+                        FullName = StringSanitizer.SanitizeTypeName(item.FullName),
+                        Namespace = StringSanitizer.Sanitize(item.Namespace),
+                        Name = StringSanitizer.Sanitize(item.Name),
+                        Kind = item.Type,
+                        MethodCount = typeDef?.Methods.Count ?? 0,
+                        FieldCount = typeDef?.Fields.Count ?? 0
+                    };
                 })
-                .ToList() ?? new List<TypeSummary>();
+                .ToList();
 
             return new SearchTypesResult
             {
@@ -187,49 +205,39 @@ public class AnalysisService
     }
 
     /// <summary>
-    /// 搜索字符串字面量
+    /// 搜索字符串字面量（使用 EnhancedSearchService，支持正则、高级语法）
     /// </summary>
     public SearchStringsResult SearchStrings(AssemblyContext context, string query, string mode = "contains", int limit = 50)
     {
         try
         {
-            var results = new List<StringMatch>();
+            var module = context.Assembly?.MainModule;
+            if (module == null)
+                return new SearchStringsResult { IsSuccess = true, Matches = new List<StringMatch>(), TotalCount = 0 };
 
-            foreach (var type in context.Assembly?.MainModule.Types ?? Enumerable.Empty<TypeDefinition>())
-            {
-                foreach (var method in type.Methods)
+            var searchService = new EnhancedSearchService(module.Mvid);
+            // 使用更大的内部 limit，以便 exact/startswith 后过滤后仍能返回足够结果
+            var internalLimit = mode is "exact" or "startswith" ? Math.Min(limit * 10, 2000) : limit;
+            var searchResult = searchService.SearchLiterals(module, query, internalLimit);
+
+            var results = searchResult.Items
+                .Where(item => item.Type == "literal" && item.Value != null)
+                .Where(item => mode switch
                 {
-                    if (!method.HasBody) continue;
-
-                    foreach (var instruction in method.Body.Instructions)
-                    {
-                        if (instruction.Operand is string str)
-                        {
-                            bool matches = mode switch
-                            {
-                                "exact" => str == query,
-                                "startswith" => str.StartsWith(query, StringComparison.OrdinalIgnoreCase),
-                                _ => str.Contains(query, StringComparison.OrdinalIgnoreCase)
-                            };
-
-                            if (matches)
-                            {
-                                results.Add(new StringMatch
-                                {
-                                    Value = StringSanitizer.Sanitize(str, 500),
-                                    TypeName = StringSanitizer.SanitizeTypeName(type.FullName),
-                                    MethodName = StringSanitizer.SanitizeMethodName(method.Name),
-                                    ILOffset = instruction.Offset
-                                });
-
-                                if (results.Count >= limit) break;
-                            }
-                        }
-                    }
-                    if (results.Count >= limit) break;
-                }
-                if (results.Count >= limit) break;
-            }
+                    "exact" => string.Equals(item.Value, query, StringComparison.Ordinal),
+                    "startswith" => item.Value!.StartsWith(query, StringComparison.OrdinalIgnoreCase),
+                    _ => true  // contains：EnhancedSearchService 已过滤
+                })
+                .Take(limit)
+                .Select(item => new StringMatch
+                {
+                    Value = StringSanitizer.Sanitize(item.Value!, 500),
+                    TypeName = StringSanitizer.SanitizeTypeName(item.DeclaringType ?? string.Empty),
+                    MethodName = StringSanitizer.SanitizeMethodName(
+                        item.FullName.Contains('.') ? item.FullName[(item.FullName.LastIndexOf('.') + 1)..] : item.FullName),
+                    ILOffset = item.ILOffset ?? 0
+                })
+                .ToList();
 
             return new SearchStringsResult
             {
@@ -242,6 +250,16 @@ public class AnalysisService
         {
             _logger.LogError(ex, "Failed to search strings: {Query}", query);
             return new SearchStringsResult { IsSuccess = false, ErrorMessage = ex.Message, Matches = new List<StringMatch>() };
+        }
+    }
+
+    private static IEnumerable<TypeDefinition> GetAllNestedTypes(TypeDefinition type)
+    {
+        foreach (var nested in type.NestedTypes)
+        {
+            yield return nested;
+            foreach (var deepNested in GetAllNestedTypes(nested))
+                yield return deepNested;
         }
     }
 
@@ -603,6 +621,128 @@ public class AnalysisService
 
     #endregion
 
+    #region 继承分析
+
+    /// <summary>
+    /// 查找类型的所有基类链（含接口）
+    /// </summary>
+    public InheritanceResult FindBaseTypes(AssemblyContext context, string typeName, bool includeInterfaces = true)
+    {
+        try
+        {
+            var type = FindType(context, typeName);
+            if (type == null)
+                return InheritanceResult.Failure($"Type '{typeName}' not found");
+
+            var analyzer = new InheritanceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var types = analyzer.FindBaseTypes(type, includeInterfaces);
+            return new InheritanceResult { IsSuccess = true, Types = types, TotalCount = types.Count };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to find base types for: {TypeName}", typeName);
+            return InheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 查找继承自指定类型的所有派生类型
+    /// </summary>
+    public InheritanceResult FindDerivedTypes(AssemblyContext context, string typeName, bool directOnly = false)
+    {
+        try
+        {
+            var type = FindType(context, typeName);
+            if (type == null)
+                return InheritanceResult.Failure($"Type '{typeName}' not found");
+
+            var analyzer = new InheritanceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var types = analyzer.FindDerivedTypes(type, directOnly);
+            return new InheritanceResult { IsSuccess = true, Types = types, TotalCount = types.Count };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to find derived types for: {TypeName}", typeName);
+            return InheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 查找接口的所有实现
+    /// </summary>
+    public InheritanceResult GetImplementations(AssemblyContext context, string interfaceTypeName)
+    {
+        try
+        {
+            var type = FindType(context, interfaceTypeName);
+            if (type == null)
+                return InheritanceResult.Failure($"Type '{interfaceTypeName}' not found");
+
+            var analyzer = new InheritanceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var types = analyzer.GetImplementations(type);
+            return new InheritanceResult { IsSuccess = true, Types = types, TotalCount = types.Count };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get implementations for: {TypeName}", interfaceTypeName);
+            return InheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 查找方法的所有覆盖
+    /// </summary>
+    public MethodInheritanceResult GetOverrides(AssemblyContext context, string typeName, string methodName)
+    {
+        try
+        {
+            var type = FindType(context, typeName);
+            if (type == null)
+                return MethodInheritanceResult.Failure($"Type '{typeName}' not found");
+
+            var method = type.Methods.FirstOrDefault(m => m.Name == methodName);
+            if (method == null)
+                return MethodInheritanceResult.Failure($"Method '{methodName}' not found in type '{typeName}'");
+
+            var analyzer = new InheritanceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var methods = analyzer.GetOverrides(method);
+            return new MethodInheritanceResult { IsSuccess = true, Methods = methods, TotalCount = methods.Count };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get overrides for: {TypeName}.{MethodName}", typeName, methodName);
+            return MethodInheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 查找方法的所有重载
+    /// </summary>
+    public MethodInheritanceResult GetOverloads(AssemblyContext context, string typeName, string methodName)
+    {
+        try
+        {
+            var type = FindType(context, typeName);
+            if (type == null)
+                return MethodInheritanceResult.Failure($"Type '{typeName}' not found");
+
+            var method = type.Methods.FirstOrDefault(m => m.Name == methodName);
+            if (method == null)
+                return MethodInheritanceResult.Failure($"Method '{methodName}' not found in type '{typeName}'");
+
+            var analyzer = new InheritanceAnalyzer(context.Assembly!.MainModule, context.Mvid);
+            var methods = analyzer.GetOverloads(method);
+            return new MethodInheritanceResult { IsSuccess = true, Methods = methods, TotalCount = methods.Count };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get overloads for: {TypeName}.{MethodName}", typeName, methodName);
+            return MethodInheritanceResult.Failure(ex.Message);
+        }
+    }
+
+    #endregion
+
     #region Helpers
 
     private static string GetTypeKind(TypeDefinition type)
@@ -611,6 +751,76 @@ public class AnalysisService
         if (type.IsEnum) return "enum";
         if (type.IsValueType) return "struct";
         return "class";
+    }
+
+    private static TypeDefinition? FindType(AssemblyContext context, string typeName)
+    {
+        return context.Assembly?.MainModule.Types.FirstOrDefault(t => t.FullName == typeName);
+    }
+
+    #endregion
+
+    #region 索引预热
+
+    /// <summary>
+    /// 预热类型和成员索引（触发 Lazy 构建并缓存）
+    /// </summary>
+    public WarmIndexResult WarmIndex(AssemblyContext context, bool typeIndex = true, bool memberIndex = true, int? maxSeconds = null)
+    {
+        var sw = Stopwatch.StartNew();
+        var typeIndexBuilt = false;
+        var memberIndexBuilt = false;
+        var maxSecondsExceeded = false;
+
+        try
+        {
+            if (typeIndex)
+            {
+                // 访问 .Value 触发 Lazy 构建（若已构建则直接返回缓存）
+                var ti = context.TypeIndex;
+                typeIndexBuilt = true;
+            }
+
+            if (memberIndex)
+            {
+                if (maxSeconds.HasValue && sw.Elapsed.TotalSeconds >= maxSeconds.Value)
+                {
+                    maxSecondsExceeded = true;
+                }
+                else
+                {
+                    var mi = context.MemberIndex;
+                    memberIndexBuilt = true;
+                }
+            }
+
+            sw.Stop();
+            return new WarmIndexResult
+            {
+                IsSuccess = true,
+                TypeIndexBuilt = typeIndexBuilt,
+                MemberIndexBuilt = memberIndexBuilt,
+                TypeCount = typeIndexBuilt ? context.TypeIndex.Count : 0,
+                MemberCount = memberIndexBuilt ? context.MemberIndex.Count : 0,
+                ElapsedMs = sw.ElapsedMilliseconds,
+                MaxSecondsExceeded = maxSecondsExceeded
+            };
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _logger.LogError(ex, "Failed to warm index");
+            return new WarmIndexResult
+            {
+                IsSuccess = false,
+                TypeIndexBuilt = typeIndexBuilt,
+                MemberIndexBuilt = memberIndexBuilt,
+                TypeCount = 0,
+                MemberCount = 0,
+                ElapsedMs = sw.ElapsedMilliseconds,
+                ErrorMessage = ex.Message
+            };
+        }
     }
 
     #endregion
@@ -849,6 +1059,38 @@ public record ObfuscationStatsInfo
     public int RandomTypeNames { get; init; }
     public int FlattenedMethods { get; init; }
     public int ProxyMethods { get; init; }
+}
+
+public record InheritanceResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public List<TypeRef> Types { get; init; } = new();
+    public int TotalCount { get; init; }
+
+    public static InheritanceResult Failure(string message) => new() { IsSuccess = false, ErrorMessage = message, Types = new List<TypeRef>() };
+}
+
+public record MethodInheritanceResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public List<MethodRef> Methods { get; init; } = new();
+    public int TotalCount { get; init; }
+
+    public static MethodInheritanceResult Failure(string message) => new() { IsSuccess = false, ErrorMessage = message, Methods = new List<MethodRef>() };
+}
+
+public record WarmIndexResult
+{
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public bool TypeIndexBuilt { get; init; }
+    public bool MemberIndexBuilt { get; init; }
+    public int TypeCount { get; init; }
+    public int MemberCount { get; init; }
+    public long ElapsedMs { get; init; }
+    public bool MaxSecondsExceeded { get; init; }
 }
 
 #endregion

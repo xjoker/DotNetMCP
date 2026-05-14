@@ -256,6 +256,183 @@ AI 会记住上下文，可以追问：
 用户: 保存到 App_Modified.dll
 ```
 
+## 进阶场景
+
+### 场景五：检测程序集是否被混淆
+
+加载程序集后，先用 `detect_obfuscation` 判断是否需要去混淆，再决定后续策略：
+
+```
+用户: 加载 SuspiciousApp.dll
+
+用户: 这个程序集被混淆了吗？
+
+AI: [调用 detect_obfuscation]
+
+    检测结果：混淆评分 87/100，置信度 High。
+    识别到混淆器：ConfuserEx。
+    主要指标：大量单字符类型名（如 a、b、c）、控制流平坦化方法 42 个、代理方法 18 个。
+    建议使用对应的反混淆工具处理后再分析。
+```
+
+### 场景六：分析继承关系
+
+当需要理解类型体系时，组合使用继承相关工具：
+
+```
+用户: IRepository 接口有哪些实现？
+
+AI: [调用 get_implementations interfaceTypeName="MyApp.IRepository"]
+
+    找到 3 个直接实现：
+    - MyApp.Data.SqlRepository
+    - MyApp.Data.MongoRepository
+    - MyApp.Data.InMemoryRepository
+
+用户: SqlRepository 的基类链是什么？
+
+AI: [调用 find_base_types typeName="MyApp.Data.SqlRepository"]
+
+    基类链：
+    - MyApp.Data.BaseRepository (internal)
+    - System.Object (external)
+    实现接口：IRepository、IDisposable
+
+用户: BaseRepository 还有哪些派生类？
+
+AI: [调用 find_derived_types typeName="MyApp.Data.BaseRepository"]
+
+    找到 4 个派生类型：SqlRepository、MongoRepository、InMemoryRepository、CachedRepository
+```
+
+### 场景七：Unity 游戏逆向
+
+分析 Unity 游戏时，先用 `detect_unity_assembly` 自动定位程序集：
+
+```
+用户: 帮我分析 /Users/me/Games/MyGame 这个 Unity 游戏
+
+AI: [调用 detect_unity_assembly gameRootPath="/Users/me/Games/MyGame"]
+
+    找到 Unity 程序集：
+    - Assembly-CSharp.dll: /Users/me/Games/MyGame/MyGame.app/Contents/Resources/Data/Managed/Assembly-CSharp.dll
+    - 游戏名称：MyGame
+    - Unity 版本：2022.3.10f1
+    - 共 47 个托管程序集
+
+用户: 加载 Assembly-CSharp.dll
+
+AI: [调用 load_assembly path="..."]
+
+用户: 找出所有 Player 相关的类型
+
+AI: [调用 search_types keyword="Player"]
+```
+
+### 场景八：依赖图可视化
+
+用依赖图了解代码结构，复制 Mermaid 输出即可渲染：
+
+```
+用户: 显示这个程序集的依赖图
+
+AI: [调用 get_dependency_graph level="assembly"]
+
+    程序集依赖图（8 个节点，12 条边）：
+    ```mermaid
+    graph LR
+      MyApp --> Newtonsoft.Json
+      MyApp --> Microsoft.EntityFrameworkCore
+      ...
+    ```
+
+用户: 展示 UserService 的类型依赖关系，深度 2
+
+AI: [调用 get_dependency_graph level="type" rootType="MyApp.Services.UserService" maxDepth=2]
+
+    类型依赖图（Mermaid）：...
+```
+
+## 用 Alias 简化工作流
+
+不必在每次工具调用中重复完整 MVID，注册一次短 alias 就可以到处使用。
+
+```
+用户: 加载 /path/to/GameLib.dll，然后注册为 alias 'game'
+
+AI: [调用 load_assembly path="/path/to/GameLib.dll"]
+    [调用 register_assembly_alias alias="game"]
+
+    已加载程序集 GameLib.dll，并注册为 alias 'game'。
+    之后凡是需要填 mvid 的地方都可以使用 'game'。
+
+用户: 用 alias 'game' 搜索名称包含 Controller 的类型
+
+AI: [调用 search_types keyword="Controller" mvid="game"]
+
+    找到 5 个匹配 'Controller' 的类型：
+    - GameLib.PlayerController
+    - GameLib.EnemyController
+    ...
+
+# 下次会话恢复
+用户: 恢复上次的程序集
+
+AI: [调用 instance_restore_persisted]
+
+    已恢复 1 个程序集，alias 'game' → GameLib.dll 可用。
+```
+
+## 用 C# 而非 IL 修改方法
+
+使用 `replace_method_body_with_csharp` 无需编写原始 IL 操作码即可修改方法逻辑。
+
+```
+用户: 用 C# 把 IsTrialExpired 改为始终返回 false
+
+AI: [调用 replace_method_body_with_csharp
+     methodFullName="MyApp.Licensing.LicenseManager::IsTrialExpired"
+     csharpBody="return false;"]
+
+    方法体已替换，共 2 条 IL 指令。
+
+用户: 保存修改
+
+AI: [调用 save_assembly outputPath="/path/to/MyApp.Patched.dll"]
+
+    程序集已保存到 MyApp.Patched.dll。
+
+# 编译失败时会返回诊断信息
+用户: 替换 GetConfig，让它返回一个特定字符串
+
+AI: [调用 replace_method_body_with_csharp
+     methodFullName="MyApp.Config::GetConfig"
+     csharpBody="return Cofig.Default;"]  ← 拼写错误
+
+    编译失败：
+    [Error] CS0103 (line 1): The name 'Cofig' does not exist in the current context
+```
+
+## 大型程序集预热索引
+
+对于大型程序集（>5 MB），分析前预先构建索引可以显著减少每次查询的延迟。
+
+```
+用户: 加载游戏程序集，在开始分析前先预热索引
+
+AI: [调用 load_assembly path="/path/to/Assembly-CSharp.dll"]
+    [调用 warm_index typeIndex=true memberIndex=true maxSeconds=30]
+
+    已加载 Assembly-CSharp.dll（8.4 MB，2847 个类型）。
+    索引预热完成：2847 个类型、41320 个成员，耗时 18.4 秒。
+
+用户: 现在搜索所有名为 Update 的方法
+
+AI: [调用 search_types keyword="Update"]  ← 直接命中缓存索引，响应即时
+
+    ...
+```
+
 ## 注意事项
 
 1. **路径格式**：使用绝对路径更可靠
@@ -263,6 +440,7 @@ AI 会记住上下文，可以追问：
 3. **大型程序集**：使用 limit 参数控制结果数量
 4. **依赖解析**：使用 searchPaths 指定依赖目录
 5. **修改前备份**：修改程序集前建议先备份原文件
+6. **Alias 跨会话持久化**：配合 `register_assembly_alias` + `instance_restore_persisted` 可避免每次会话重新加载程序集
 
 ## 下一步
 

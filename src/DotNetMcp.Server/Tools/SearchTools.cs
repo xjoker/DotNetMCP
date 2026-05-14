@@ -28,11 +28,8 @@ public sealed class SearchTools
         [Description("Maximum number of results to return (default: 50)")] int limit = 50,
         [Description("Optional backend ID")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new SearchTypesToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled.", Types = Array.Empty<TypeDto>() };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new SearchTypesToolResult { Success = false, Error = err, Types = Array.Empty<TypeDto>() };
 
         var result = await backend.SearchTypesAsync(mvid ?? "", keyword, namespaceFilter, limit);
         return new SearchTypesToolResult
@@ -63,11 +60,8 @@ public sealed class SearchTools
         [Description("Maximum number of results to return (default: 50)")] int limit = 50,
         [Description("Optional backend ID")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new SearchStringsToolResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled.", Matches = Array.Empty<StringMatchDto>() };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new SearchStringsToolResult { Success = false, Error = err, Matches = Array.Empty<StringMatchDto>() };
 
         var result = await backend.SearchStringsAsync(mvid ?? "", query, mode, limit);
         return new SearchStringsToolResult

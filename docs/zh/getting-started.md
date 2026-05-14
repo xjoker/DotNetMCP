@@ -232,12 +232,20 @@ AI: [显示 GetUser 的调用图]
 1. 确保程序集未被混淆
 2. 某些类型可能需要完整的命名空间，例如 `MyNamespace.MyClass`
 
+### Q: 每次命令都要输入 MVID，有没有更简单的方式？
+
+**A:**
+加载程序集后注册一个短 alias：
+> "把已加载的程序集注册为 alias 'main'"
+
+之后凡是需要 `mvid` 参数的地方，直接填 `'main'` 即可。使用 `instance_restore_persisted` 可在下次会话中恢复 alias。
+
 ### Q: 如何分析多个程序集？
 
 **A:**
 1. 依次加载多个程序集
 2. 使用 `list_assemblies` 查看已加载的程序集
-3. 在分析时指定目标程序集
+3. 在分析时指定目标程序集（MVID 或 alias 均可）
 
 ### Q: Windows 上路径问题？
 

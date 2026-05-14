@@ -597,4 +597,77 @@ public class AnalysisToolsTests
     }
 
     #endregion
+
+    #region get_dependency_graph 测试
+
+    [Fact]
+    public async Task GetDependencyGraph_AssemblyLevel_ReturnsGraph()
+    {
+        // Arrange
+        var mermaid = "graph TD\n  A --> B";
+        _mockBackend.Setup(b => b.BuildDependencyGraphAsync("", "assembly", null, 3, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DependencyGraphResult
+            {
+                IsSuccess = true,
+                Level = "assembly",
+                RootId = "root-id",
+                TotalNodes = 5,
+                InternalNodes = 1,
+                ExternalNodes = 4,
+                TotalEdges = 4,
+                Mermaid = mermaid
+            });
+
+        // Act
+        var result = await _tools.GetDependencyGraph(level: "assembly");
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal("assembly", result.Level);
+        Assert.Equal(5, result.TotalNodes);
+        Assert.Equal(4, result.ExternalNodes);
+        Assert.Equal(mermaid, result.Mermaid);
+    }
+
+    [Fact]
+    public async Task GetDependencyGraph_TypeLevel_ReturnsGraph()
+    {
+        // Arrange
+        var rootType = "MyNamespace.MyClass";
+        var mermaid = "graph TD\n  MyClass --> OtherClass";
+        _mockBackend.Setup(b => b.BuildDependencyGraphAsync("", "type", rootType, 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DependencyGraphResult
+            {
+                IsSuccess = true,
+                Level = "type",
+                RootId = rootType,
+                TotalNodes = 3,
+                InternalNodes = 2,
+                ExternalNodes = 1,
+                TotalEdges = 2,
+                Mermaid = mermaid
+            });
+
+        // Act
+        var result = await _tools.GetDependencyGraph(level: "type", rootType: rootType, maxDepth: 2);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal("type", result.Level);
+        Assert.Equal(rootType, result.RootId);
+        Assert.Equal(mermaid, result.Mermaid);
+    }
+
+    [Fact]
+    public async Task GetDependencyGraph_TypeLevelMissingRootType_ReturnsError()
+    {
+        // Act - level=type without rootType
+        var result = await _tools.GetDependencyGraph(level: "type", rootType: null);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("rootType is required", result.Error);
+    }
+
+    #endregion
 }

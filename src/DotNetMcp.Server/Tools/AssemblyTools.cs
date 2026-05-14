@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
 using DotNetMcp.Server.Backend;
+using DotNetMcp.Backend.Core.Utils;
 
 namespace DotNetMcp.Server.Tools;
 
@@ -26,11 +27,8 @@ public sealed class AssemblyTools
         [Description("Additional directories to search for dependencies (e.g., NuGet packages folder)")] string[]? searchPaths = null,
         [Description("Backend ID to use. Omit to use the default backend.")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new LoadAssemblyResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new LoadAssemblyResult { Success = false, Error = err };
 
         var result = await backend.LoadAssemblyAsync(path, searchPaths);
         if (!result.IsSuccess)
@@ -60,11 +58,8 @@ public sealed class AssemblyTools
     public async Task<ListAssembliesResult> ListAssemblies(
         [Description("Backend ID to query. Omit to use the default backend.")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new ListAssembliesResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled.", Assemblies = Array.Empty<AssemblyInfoDto>() };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new ListAssembliesResult { Success = false, Error = err, Assemblies = Array.Empty<AssemblyInfoDto>() };
 
         var assemblies = await backend.ListAssembliesAsync();
         return new ListAssembliesResult
@@ -89,17 +84,35 @@ public sealed class AssemblyTools
         [Description("The MVID (Module Version ID) of the assembly to unload")] string mvid,
         [Description("Backend ID. Omit to use the default backend.")] string? backendId = null)
     {
-        var backend = _registry.Get(backendId);
-        if (backend == null)
-        {
-            return new UnloadAssemblyResult { Success = false, Error = "No backend available. Use 'list_backends' to check registered backends, or ensure the local backend is enabled." };
-        }
+        var backend = _registry.TryGet(backendId, out var err);
+        if (backend == null) return new UnloadAssemblyResult { Success = false, Error = err };
 
         var success = await backend.UnloadAssemblyAsync(mvid);
         return new UnloadAssemblyResult
         {
             Success = success,
             Error = success ? null : $"Assembly '{mvid}' not found. Use 'list_assemblies' to see loaded assemblies."
+        };
+    }
+
+    /// <summary>
+    /// 探测 Unity 游戏目录中的 Assembly-CSharp.dll
+    /// </summary>
+    [McpServerTool(Name = "detect_unity_assembly"), Description("Detect Assembly-CSharp.dll in a Unity game directory. Supports Windows/macOS/Linux Unity layouts. Returns the assembly path, managed directory, and list of all managed dlls. Useful when reverse engineering Unity games where the exact dll path is unknown.")]
+    public DetectUnityAssemblyResult DetectUnityAssembly(
+        [Description("Path to the Unity game root directory or .app bundle")] string gameRootPath)
+    {
+        var result = UnityPathDetector.Detect(gameRootPath);
+        return new DetectUnityAssemblyResult
+        {
+            Success = result.IsSuccess,
+            AssemblyCSharpPath = result.AssemblyCSharpPath,
+            ManagedDirectory = result.ManagedDirectory,
+            GameName = result.GameName,
+            Platform = result.Platform,
+            UnityVersion = result.UnityVersion,
+            ManagedAssemblies = result.ManagedAssemblies.ToArray(),
+            Error = result.ErrorMessage
         };
     }
 }
@@ -132,5 +145,17 @@ public record AssemblyInfoDto
 public record UnloadAssemblyResult
 {
     public bool Success { get; init; }
+    public string? Error { get; init; }
+}
+
+public record DetectUnityAssemblyResult
+{
+    public bool Success { get; init; }
+    public string? AssemblyCSharpPath { get; init; }
+    public string? ManagedDirectory { get; init; }
+    public string? GameName { get; init; }
+    public string? Platform { get; init; }
+    public string? UnityVersion { get; init; }
+    public string[] ManagedAssemblies { get; init; } = Array.Empty<string>();
     public string? Error { get; init; }
 }

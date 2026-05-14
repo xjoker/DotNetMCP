@@ -1,4 +1,5 @@
 using Mono.Cecil;
+using DotNetMcp.Backend.Core.Analysis;
 
 namespace DotNetMcp.Backend.Core.Context;
 
@@ -13,11 +14,40 @@ public class AssemblyContext : IDisposable
     private bool _disposed;
     private readonly SemaphoreSlim _operationLock = new(1, 1);
 
+    private Lazy<TypeIndex> _typeIndex;
+    private Lazy<MemberIndex> _memberIndex;
+
+    private static Lazy<TypeIndex> CreateTypeIndexLazy(AssemblyContext ctx)
+        => new(() => new IndexBuilder(ctx).BuildTypeIndex(), LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private static Lazy<MemberIndex> CreateMemberIndexLazy(AssemblyContext ctx)
+        => new(() => new IndexBuilder(ctx).BuildMemberIndex(), LazyThreadSafetyMode.ExecutionAndPublication);
+
     /// <summary>
     /// 获取操作锁，用于保护对 Cecil 对象图的并发访问。
     /// 修改操作应使用此锁，分析操作在并发场景下也建议使用。
     /// </summary>
     public SemaphoreSlim OperationLock => _operationLock;
+
+    /// <summary>
+    /// 类型索引（按需延迟构建并缓存）
+    /// </summary>
+    public TypeIndex TypeIndex => _typeIndex.Value;
+
+    /// <summary>
+    /// 成员索引（按需延迟构建并缓存）
+    /// </summary>
+    public MemberIndex MemberIndex => _memberIndex.Value;
+
+    /// <summary>
+    /// 类型索引是否已构建
+    /// </summary>
+    public bool IsTypeIndexBuilt => _typeIndex.IsValueCreated;
+
+    /// <summary>
+    /// 成员索引是否已构建
+    /// </summary>
+    public bool IsMemberIndexBuilt => _memberIndex.IsValueCreated;
 
     /// <summary>
     /// 程序集定义
@@ -66,7 +96,7 @@ public class AssemblyContext : IDisposable
             throw new FileNotFoundException($"Assembly file not found: {assemblyPath}");
 
         _assemblyPath = Path.GetFullPath(assemblyPath);
-        
+
         // 自动将程序集所在目录添加到搜索路径（实现自动依赖发现）
         var autoSearchPaths = new List<string>();
         var assemblyDir = Path.GetDirectoryName(_assemblyPath);
@@ -74,14 +104,18 @@ public class AssemblyContext : IDisposable
         {
             autoSearchPaths.Add(assemblyDir);
         }
-        
+
         // 合并用户指定的搜索路径
         if (searchPaths != null)
         {
             autoSearchPaths.AddRange(searchPaths);
         }
-        
+
         _resolver = new CustomAssemblyResolver(autoSearchPaths);
+
+        // 初始化 Lazy 索引（延迟到首次访问 .Value 时才构建）
+        _typeIndex = CreateTypeIndexLazy(this);
+        _memberIndex = CreateMemberIndexLazy(this);
     }
 
     /// <summary>
@@ -145,9 +179,13 @@ public class AssemblyContext : IDisposable
 
         // 释放旧的程序集
         _assembly?.Dispose();
-        
+
         // 替换为新的程序集
         _assembly = newAssembly;
+
+        // 重置 Lazy 索引，使其在下次访问时重新构建
+        _typeIndex = CreateTypeIndexLazy(this);
+        _memberIndex = CreateMemberIndexLazy(this);
     }
 
     /// <summary>

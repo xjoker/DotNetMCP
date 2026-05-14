@@ -232,12 +232,20 @@ AI: [Shows call graph for GetUser]
 1. Ensure the assembly is not obfuscated
 2. Some types may require full namespace, e.g., `MyNamespace.MyClass`
 
+### Q: How to avoid repeating the MVID in every command?
+
+**A:**
+After loading, register a short alias:
+> "Register the loaded assembly as alias 'main'"
+
+Then use `'main'` wherever a `mvid` is required. Use `instance_restore_persisted` to reload the alias in the next session.
+
 ### Q: How to analyze multiple assemblies?
 
 **A:**
 1. Load multiple assemblies sequentially
 2. Use `list_assemblies` to see loaded assemblies
-3. Specify target assembly when analyzing
+3. Specify target assembly when analyzing (by MVID or alias)
 
 ### Q: Path issues on Windows?
 

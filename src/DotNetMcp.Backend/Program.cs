@@ -1,5 +1,7 @@
 using DotNetMcp.Backend.Services;
 using DotNetMcp.Backend.Middleware;
+using DotNetMcp.Backend.Core.Compilation;
+using DotNetMcp.Backend.Core.Modification;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,8 +9,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 // 注册服务
+builder.Services.AddSingleton<AliasPersistence>();
 builder.Services.AddSingleton<IAssemblyManager, AssemblyManager>();
 builder.Services.AddSingleton<IResourceServiceFactory, ResourceServiceFactory>();
+builder.Services.AddSingleton<ReferenceAssemblyProvider>();
+builder.Services.AddSingleton<CompilationService>();
+builder.Services.AddSingleton<RoslynPatchService>();
 builder.Services.AddSingleton<ModificationService>();
 builder.Services.AddSingleton<AnalysisService>();
 builder.Services.AddSingleton<TransferTokenStore>();
@@ -44,4 +50,7 @@ app.MapGet("/", () => new
 });
 
 app.Run();
+
+// Expose Program class for WebApplicationFactory in integration tests
+public partial class Program { }
 

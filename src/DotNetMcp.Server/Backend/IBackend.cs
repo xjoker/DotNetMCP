@@ -1,6 +1,7 @@
 using DotNetMcp.Backend.Services;
 using DotNetMcp.Backend.Core.Analysis;
 using DotNetMcp.Backend.Core.Context;
+using RoslynPatchResult = DotNetMcp.Backend.Core.Modification.RoslynPatchResult;
 
 namespace DotNetMcp.Server.Backend;
 
@@ -42,7 +43,7 @@ public interface IBackend
     // 程序集操作
     Task<AssemblyLoadResult> LoadAssemblyAsync(string path, IEnumerable<string>? searchPaths = null, CancellationToken cancellationToken = default);
     Task<bool> UnloadAssemblyAsync(string mvid, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<AssemblyInfo>> ListAssembliesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AssemblyListItem>> ListAssembliesAsync(CancellationToken cancellationToken = default);
 
     // 分析操作
     Task<DecompileResult> DecompileTypeAsync(string mvid, string typeName, string language = "csharp", bool preferOriginalSource = false, CancellationToken cancellationToken = default);
@@ -69,11 +70,57 @@ public interface IBackend
     // Patch 骨架生成
     Task<PatchSkeletonResult> GeneratePatchSkeletonAsync(string mvid, string typeName, string methodName, string[] patchKinds, CancellationToken cancellationToken = default);
 
+    // 依赖图分析
+    Task<DependencyGraphResult> BuildDependencyGraphAsync(string mvid, string level, string? rootType, int maxDepth, CancellationToken cancellationToken = default);
+
+    // 设计模式检测
+    Task<PatternDetectionServiceResult> DetectPatternsAsync(string mvid, string? typeName, CancellationToken cancellationToken = default);
+
     // 修改操作
     Task<ModificationResult> InjectAtEntryAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
     Task<ModificationResult> ReplaceMethodBodyAsync(string mvid, string methodFullName, InjectionRequest request, CancellationToken cancellationToken = default);
     Task<ModificationResult> AddTypeAsync(string mvid, TypeCreationRequest request, CancellationToken cancellationToken = default);
     Task<ModificationResult> SaveAssemblyAsync(string mvid, string outputPath, CancellationToken cancellationToken = default);
+
+    // 混淆检测
+    Task<ObfuscationDetectionServiceResult> DetectObfuscationAsync(string mvid, CancellationToken cancellationToken = default);
+
+    #region Roslyn 修改
+    /// <summary>
+    /// 用 C# 源码替换方法体（Roslyn 编译 + Cecil 注入）
+    /// </summary>
+    Task<RoslynPatchResult> ReplaceMethodBodyWithCSharpAsync(
+        string mvid,
+        string methodFullName,
+        string csharpBody,
+        string[]? usings,
+        bool allowUnsafe,
+        CancellationToken cancellationToken = default);
+    #endregion
+
+    #region 增强搜索
+    // 增强搜索 - 支持正则、高级语法（+/-/=/~）、Token 模式
+    Task<EnhancedSearchResult> EnhancedSearchAsync(string mvid, string query, string mode, string? namespaceFilter, int limit, CancellationToken cancellationToken = default);
+    #endregion
+
+    #region 继承分析
+    Task<InheritanceResult> FindBaseTypesAsync(string mvid, string typeName, bool includeInterfaces = true, CancellationToken cancellationToken = default);
+    Task<InheritanceResult> FindDerivedTypesAsync(string mvid, string typeName, bool directOnly = false, CancellationToken cancellationToken = default);
+    Task<InheritanceResult> GetImplementationsAsync(string mvid, string interfaceTypeName, CancellationToken cancellationToken = default);
+    Task<MethodInheritanceResult> GetOverridesAsync(string mvid, string typeName, string methodName, CancellationToken cancellationToken = default);
+    Task<MethodInheritanceResult> GetOverloadsAsync(string mvid, string typeName, string methodName, CancellationToken cancellationToken = default);
+    #endregion
+
+    #region Alias 管理（backend-local）
+    Task<AliasOperationResult> RegisterAssemblyAliasAsync(string alias, string mvid, bool overwrite = false, CancellationToken cancellationToken = default);
+    Task<AliasOperationResult> UnregisterAssemblyAliasAsync(string alias, CancellationToken cancellationToken = default);
+    Task<ListAliasesResult> ListAssemblyAliasesAsync(CancellationToken cancellationToken = default);
+    Task<RestorePersistedResult> RestorePersistedAssembliesAsync(CancellationToken cancellationToken = default);
+    #endregion
+
+    #region 索引管理
+    Task<WarmIndexResult> WarmIndexAsync(string mvid, bool typeIndex = true, bool memberIndex = true, int? maxSeconds = null, CancellationToken cancellationToken = default);
+    #endregion
 }
 
 /// <summary>
@@ -86,9 +133,9 @@ public enum BackendType
 }
 
 /// <summary>
-/// 程序集信息
+/// 程序集列表条目（ListAssembliesAsync 返回的 DTO）
 /// </summary>
-public record AssemblyInfo
+public record AssemblyListItem
 {
     public required string Mvid { get; init; }
     public required string Name { get; init; }
@@ -221,4 +268,62 @@ public class MemberOutlineItem
     public bool IsStatic { get; set; }
     public bool IsVirtual { get; set; }
     public bool IsAbstract { get; set; }
+}
+
+/// <summary>
+/// alias 操作结果
+/// </summary>
+public class AliasOperationResult
+{
+    public bool IsSuccess { get; set; }
+    public string? Alias { get; set; }
+    public string? Mvid { get; set; }
+    public string? ErrorMessage { get; set; }
+
+    public static AliasOperationResult Success(string alias, string? mvid = null)
+        => new() { IsSuccess = true, Alias = alias, Mvid = mvid };
+
+    public static AliasOperationResult Failure(string error)
+        => new() { IsSuccess = false, ErrorMessage = error };
+}
+
+/// <summary>
+/// 列出 alias 结果
+/// </summary>
+public class ListAliasesResult
+{
+    public bool IsSuccess { get; set; }
+    public string? ErrorMessage { get; set; }
+    public List<AliasInfoDto> Aliases { get; set; } = new();
+
+    public static ListAliasesResult Success(List<AliasInfoDto> aliases)
+        => new() { IsSuccess = true, Aliases = aliases };
+
+    public static ListAliasesResult Failure(string error)
+        => new() { IsSuccess = false, ErrorMessage = error };
+}
+
+/// <summary>
+/// 单条 alias 信息
+/// </summary>
+public class AliasInfoDto
+{
+    public required string Alias { get; set; }
+    public required string Mvid { get; set; }
+}
+
+/// <summary>
+/// 恢复持久化程序集结果
+/// </summary>
+public class RestorePersistedResult
+{
+    public bool IsSuccess { get; set; }
+    public int RestoredCount { get; set; }
+    public string? ErrorMessage { get; set; }
+
+    public static RestorePersistedResult Success(int count)
+        => new() { IsSuccess = true, RestoredCount = count };
+
+    public static RestorePersistedResult Failure(string error)
+        => new() { IsSuccess = false, ErrorMessage = error };
 }

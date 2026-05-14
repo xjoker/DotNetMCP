@@ -42,7 +42,7 @@ dotnet run --project src/DotNetMcp.Server -- --port 8080
   "AllowedHosts": "*",
   "McpServer": {
     "Name": "DotNet MCP",
-    "Version": "0.0.2"
+    "Version": "0.0.3"
   }
 }
 ```
@@ -144,7 +144,7 @@ Register remote backend http://remote-server:5000 named "remote-1"
   "McpServer": {
     "EnableLocalBackend": true,
     "ServerName": "dotnet-mcp",
-    "ServerVersion": "0.0.2",
+    "ServerVersion": "0.0.3",
     "HealthCheckIntervalSeconds": 30,
     "RemoteBackends": [
       {

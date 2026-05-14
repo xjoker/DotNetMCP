@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-> **v0.0.2** - Pure C# Architecture, Unified MCP Server and Backend
+> **v0.0.3** - Pure C# Architecture, Unified MCP Server and Backend
 
 A .NET assembly reverse engineering and modification tool based on MCP (Model Context Protocol).
 
@@ -18,8 +18,12 @@ DotNet MCP is a tool that provides .NET assembly analysis and modification capab
 
 - Load and analyze .NET assemblies (DLL/EXE)
 - Decompile types and methods to C# source code or IL
-- Search types, methods, and strings
-- Analyze call graphs and control flow graphs
+- Search types, methods, and strings (regex / advanced syntax supported)
+- Analyze call graphs, control flow graphs, and dependency graphs
+- Inspect inheritance chains, interface implementations, and method overrides
+- Detect design patterns (Singleton, Factory, Observer, and more)
+- Detect obfuscation and identify the obfuscator used
+- Auto-detect Unity game assembly paths
 - Inject code and modify assemblies
 
 ## Architecture
@@ -32,7 +36,7 @@ flowchart TB
     Client -->|"MCP Protocol (stdio/HTTP)"| Server
 
     subgraph Server["DotNetMcp.Server"]
-        Tools["MCP Tools (25)<br/>Assembly | Search | Analysis | Modification | Instance"]
+        Tools["MCP Tools (41)<br/>Assembly | Search | Analysis | Modification | Instance"]
         Registry["Backend Registry<br/>(Local / Remote)"]
         Tools --> Registry
     end
@@ -197,13 +201,14 @@ Or use the compiled executable:
 
 ## MCP Tools
 
-### Assembly Management (3)
+### Assembly Management (4)
 
 | Tool | Description |
 |------|-------------|
 | `load_assembly` | Load a .NET assembly |
 | `list_assemblies` | List loaded assemblies |
 | `unload_assembly` | Unload an assembly |
+| `detect_unity_assembly` | Auto-detect Assembly-CSharp.dll in a Unity game directory |
 
 ### Search Tools (2)
 
@@ -212,32 +217,45 @@ Or use the compiled executable:
 | `search_types` | Search types by keyword |
 | `search_strings` | Search string literals |
 
-### Analysis Tools (10)
+### Analysis Tools (20)
 
 | Tool | Description |
 |------|-------------|
 | `decompile_type` | Decompile type to C#/IL (supports PDB original source) |
-| `decompile_method` | Decompile method |
+| `decompile_method` | Decompile a single method precisely |
 | `find_type_references` | Find type references |
 | `find_method_calls` | Find method calls |
 | `get_call_graph` | Build call graph |
-| `get_control_flow_graph` | Build control flow graph |
+| `get_control_flow_graph` | Build control flow graph (Mermaid) |
 | `get_type_outline` | Get metadata-based type outline (no decompilation) |
 | `plan_chunking` | Plan LLM-friendly source code chunks |
 | `compare_assemblies` | Compare two assemblies for structural differences |
 | `batch_decompile` | Decompile multiple members in one call |
+| `get_dependency_graph` | Build assembly/namespace/type dependency graph (Mermaid) |
+| `detect_design_patterns` | Detect Singleton, Factory, Observer, and other design patterns |
+| `find_base_types` | Find base class chain and interfaces for a type |
+| `find_derived_types` | Find all types that inherit from a given type |
+| `get_implementations` | Find all implementations of an interface |
+| `get_overrides` | Find all overrides of a virtual/abstract method |
+| `get_overloads` | Find all overloads of a method within a type |
+| `enhanced_search` | Unified search with advanced syntax (regex / +/- / exact / fuzzy / token) |
+| `detect_obfuscation` | Detect obfuscation, identify obfuscator, score 0-100 |
+| `warm_index` | Pre-build type and member indexes for faster subsequent queries |
 
-### Modification Tools (5)
+### Modification Tools (6)
 
 | Tool | Description |
 |------|-------------|
 | `inject_at_entry` | Inject code at method entry |
-| `replace_method_body` | Replace method body |
+| `replace_method_body` | Replace method body with raw IL instructions |
+| `replace_method_body_with_csharp` | Replace method body using C# source code (Roslyn compile + Cecil merge) |
 | `add_type` | Add new type |
 | `save_assembly` | Save modified assembly |
 | `generate_patch_skeleton` | Generate Harmony patch skeleton code |
 
-### Instance Management (5)
+### Instance Management
+
+#### Backend Management (5)
 
 | Tool | Description |
 |------|-------------|
@@ -246,6 +264,15 @@ Or use the compiled executable:
 | `unregister_backend` | Unregister backend |
 | `set_default_backend` | Set default backend |
 | `check_backend_health` | Check backend health |
+
+#### Assembly Alias Management (4)
+
+| Tool | Description |
+|------|-------------|
+| `register_assembly_alias` | Register a short alias for a loaded assembly MVID |
+| `unregister_assembly_alias` | Remove a previously registered alias |
+| `list_assembly_aliases` | List all registered aliases (alias → MVID mappings) |
+| `instance_restore_persisted` | Reload assemblies from persisted aliases saved in previous session |
 
 ## Usage Examples
 
@@ -346,6 +373,39 @@ DotNetMCP/
 - **Mono.Cecil** - Assembly manipulation
 - **ICSharpCode.Decompiler** - Decompilation
 - **Microsoft.CodeAnalysis** - Roslyn compilation
+
+## Docker Deployment
+
+### Build Image
+
+```bash
+docker build -t dotnet-mcp .
+```
+
+### Run (HTTP Mode)
+
+```bash
+docker run -p 5000:5000 dotnet-mcp
+```
+
+The server will be available at `http://localhost:5000`.
+Health check endpoint: `http://localhost:5000/health`
+
+### Run with API Key
+
+```bash
+docker run -p 5000:5000 -e API_KEYS="your-secret-key" dotnet-mcp
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ASPNETCORE_URLS` | `http://+:5000` | Listening address |
+| `API_KEYS` | *(none)* | Comma-separated API keys for authentication |
+| `TZ` | `UTC` | Timezone |
+
+> **Note**: Stdio mode (`--stdio`) is not applicable in Docker. Use HTTP mode and connect Claude via `http://localhost:5000/mcp`.
 
 ## License
 

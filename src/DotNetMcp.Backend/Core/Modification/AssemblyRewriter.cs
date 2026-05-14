@@ -1,3 +1,4 @@
+using DotNetMcp.Backend.Services;
 using Mono.Cecil;
 
 namespace DotNetMcp.Backend.Core.Modification;
@@ -28,7 +29,7 @@ public class AssemblyRewriter
         }
         catch (Exception ex)
         {
-            return ModificationResult.Failure($"Failed to add type: {ex.Message}");
+            return ModificationResult.Failure("ADD_TYPE_FAILED", $"Failed to add type: {ex.Message}");
         }
     }
 
@@ -41,14 +42,14 @@ public class AssemblyRewriter
         {
             var removed = _assembly.MainModule.Types.Remove(type);
             if (!removed)
-                return ModificationResult.Failure("Type not found in module");
+                return ModificationResult.Failure("TYPE_NOT_FOUND", "Type not found in module");
 
             RecordModification(ModificationType.TypeRemoved, type.FullName);
             return ModificationResult.Success();
         }
         catch (Exception ex)
         {
-            return ModificationResult.Failure($"Failed to remove type: {ex.Message}");
+            return ModificationResult.Failure("REMOVE_TYPE_FAILED", $"Failed to remove type: {ex.Message}");
         }
     }
 
@@ -65,7 +66,7 @@ public class AssemblyRewriter
         }
         catch (Exception ex)
         {
-            return ModificationResult.Failure($"Failed to add method: {ex.Message}");
+            return ModificationResult.Failure("ADD_METHOD_FAILED", $"Failed to add method: {ex.Message}");
         }
     }
 
@@ -78,14 +79,14 @@ public class AssemblyRewriter
         {
             var removed = type.Methods.Remove(method);
             if (!removed)
-                return ModificationResult.Failure("Method not found in type");
+                return ModificationResult.Failure("METHOD_NOT_FOUND", "Method not found in type");
 
             RecordModification(ModificationType.MethodRemoved, $"{type.FullName}.{method.Name}");
             return ModificationResult.Success();
         }
         catch (Exception ex)
         {
-            return ModificationResult.Failure($"Failed to remove method: {ex.Message}");
+            return ModificationResult.Failure("REMOVE_METHOD_FAILED", $"Failed to remove method: {ex.Message}");
         }
     }
 
@@ -102,7 +103,7 @@ public class AssemblyRewriter
         }
         catch (Exception ex)
         {
-            return ModificationResult.Failure($"Failed to add field: {ex.Message}");
+            return ModificationResult.Failure("ADD_FIELD_FAILED", $"Failed to add field: {ex.Message}");
         }
     }
 
@@ -121,7 +122,7 @@ public class AssemblyRewriter
         }
         catch (Exception ex)
         {
-            return ModificationResult.Failure($"Failed to modify type: {ex.Message}");
+            return ModificationResult.Failure("MODIFY_TYPE_FAILED", $"Failed to modify type: {ex.Message}");
         }
     }
 
@@ -140,7 +141,7 @@ public class AssemblyRewriter
         }
         catch (Exception ex)
         {
-            return ModificationResult.Failure($"Failed to modify method: {ex.Message}");
+            return ModificationResult.Failure("MODIFY_METHOD_FAILED", $"Failed to modify method: {ex.Message}");
         }
     }
 
@@ -159,7 +160,7 @@ public class AssemblyRewriter
         }
         catch (Exception ex)
         {
-            return ModificationResult.Failure($"Failed to rename method: {ex.Message}");
+            return ModificationResult.Failure("RENAME_METHOD_FAILED", $"Failed to rename method: {ex.Message}");
         }
     }
 
@@ -232,18 +233,6 @@ public class AssemblyRewriter
             Timestamp = DateTime.UtcNow
         });
     }
-}
-
-/// <summary>
-/// 修改结果
-/// </summary>
-public record ModificationResult
-{
-    public bool IsSuccess { get; init; }
-    public string? ErrorMessage { get; init; }
-
-    public static ModificationResult Success() => new() { IsSuccess = true };
-    public static ModificationResult Failure(string message) => new() { IsSuccess = false, ErrorMessage = message };
 }
 
 /// <summary>
